@@ -1,0 +1,25 @@
+/* API’den gelen ders ve sınav taslaklarını referans görünüme uygun sunar. */
+import { BarChart3, BookOpenCheck, ChevronDown, GraduationCap, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Card } from '../../components/ui/Card';
+import { EmptyState, LoadingState } from '../../components/ui/State';
+import { Modal } from '../../components/ui/Modal';
+import { useCourse } from '../../hooks/useCourses';
+import { useCreateExam, useExams } from '../../hooks/useExams';
+import type { EvaluationType, ExamType } from '../../types/api';
+
+const examOptions: Array<{ type: ExamType; label: string; icon: typeof BookOpenCheck; tone: string }> = [{ type: 'Midterm', label: 'Vize', icon: BookOpenCheck, tone: 'bg-blue-50 text-slate-600' }, { type: 'Final', label: 'Final', icon: GraduationCap, tone: 'bg-emerald-50 text-slate-600' }, { type: 'MakeUp', label: 'Bütünleme', icon: RotateCcw, tone: 'bg-orange-50 text-slate-600' }];
+
+export function CoursePage() {
+  const { courseId = '' } = useParams();
+  const navigate = useNavigate();
+  const { data: course, isLoading: courseLoading, isError: courseError } = useCourse(courseId);
+  const { data: exams, isLoading: examsLoading } = useExams(courseId);
+  const createExamMutation = useCreateExam(courseId);
+  const [selected, setSelected] = useState<{ type: ExamType; label: string } | null>(null);
+  const createDraft = async (evaluationType: EvaluationType) => { if (!selected) return; const existingExam = exams?.find((item) => item.examType === selected.type); const exam = existingExam ?? await createExamMutation.mutateAsync({ examType: selected.type, evaluationType }); navigate(`/course/${courseId}/exam/${selected.type}/new?examId=${exam.id}${evaluationType === 'OpenEnded' ? '&mode=open-ended' : ''}`); };
+  if (courseLoading || examsLoading) return <LoadingState label="Ders ve sınavlar yükleniyor..." />;
+  if (courseError || !course) return <Card className="p-6"><EmptyState title="Ders yüklenemedi" description="Ders bulunamadı veya erişim yetkiniz yok." /></Card>;
+  return <><div className="grid gap-8"><div><h1 className="text-[28px] font-semibold tracking-tight text-ink">{course.name}</h1><p className="mt-1 text-sm text-slate-500">{course.code} · {course.academicYear}</p></div><div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">{examOptions.map((option) => { const Icon = option.icon; const exam = exams?.find((item) => item.examType === option.type); return <Card key={option.type} className={`min-h-[185px] border-t-4 p-6 ${exam ? 'border-t-brand-500' : 'border-t-transparent'}`}><div className="flex h-full flex-col items-center justify-between text-center"><span className={`grid h-14 w-14 place-items-center rounded-xl ${option.tone}`}><Icon size={29} strokeWidth={1.8} /></span><div><h2 className="mt-4 text-base font-semibold text-ink">{option.label}</h2>{exam ? <p className="mt-1 text-xs text-slate-400">Taslak hazır</p> : <p className="mt-1 text-xs text-slate-400">Henüz sınav oluşturulmadı</p>}</div><button className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-ink hover:text-brand-700" onClick={() => setSelected(option)}>{exam ? 'Sınav işlemleri' : 'Yeni sınav girişi'}<ChevronDown size={16} /></button></div></Card>; })}<Card className="min-h-[185px] border-t-4 border-t-transparent p-6 opacity-60"><div className="flex h-full flex-col items-center justify-between text-center"><span className="grid h-14 w-14 place-items-center rounded-xl bg-slate-100 text-slate-500"><BarChart3 size={29} strokeWidth={1.8} /></span><h2 className="mt-4 text-base font-semibold text-slate-600">Dönem Değerlendirme</h2><p className="text-xs text-slate-400">Yakında</p></div></Card></div></div><Modal open={selected !== null} title={`${selected?.label ?? ''} için sınav giriş türü seçin`} onClose={() => setSelected(null)}><p className="text-sm text-slate-500">Devam etmeden önce hangi sınav türüyle ilerleyeceğinizi belirleyin.</p>{createExamMutation.isError && <p className="mt-4 rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{createExamMutation.error instanceof Error ? createExamMutation.error.message : 'Sınav oluşturulamadı.'}</p>}<div className="mt-5 grid gap-3"><button disabled={createExamMutation.isPending} onClick={() => createDraft('MultipleChoice')} className="rounded-xl border-2 border-brand-500 bg-brand-50 px-4 py-3 text-left hover:bg-brand-100 disabled:opacity-50"><p className="font-semibold text-ink">Çoktan Seçmeli</p><p className="mt-1 text-xs text-slate-500">Optik ve cevap anahtarı odaklı mevcut akışa devam edin.</p></button><button disabled={createExamMutation.isPending} onClick={() => createDraft('OpenEnded')} className="rounded-xl border border-slate-200 px-4 py-3 text-left hover:border-brand-500 disabled:opacity-50"><p className="font-semibold text-ink">Açık Uçlu</p><p className="mt-1 text-xs text-slate-500">Açık uçlu değerlendirme akışı için tür seçimi yapın.</p></button></div></Modal></>;
+}
