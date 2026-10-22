@@ -47,6 +47,19 @@ public sealed class FileParserTests
     }
 
     [Fact]
+    public async Task OpticalParser_SeparatesAnswerKeyRecordsFromStudents()
+    {
+        var content = "ANSWER_KEY_A|CBAAEEAEADAADDEACADCAEDBE\nANSWER_KEY_B|EBDEACDACAEDDAADAEAEEAABC\n900100001ACBAAEEAEADAADDEACADCAEDBE\n";
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        var result = await new OpticalFileParser().ParseAsync(stream, new OpticalFormConfigurationInput(0, 9, null, null, 9, 1, null, null, 10, 25, "utf-8"), default);
+        Assert.Equal(3, result.Records.Count);
+        Assert.Equal(2, result.Records.Count(item => item.IsAnswerKey));
+        Assert.Equal(1, result.Records.Count(item => !item.IsAnswerKey));
+        Assert.Equal("A", result.Records.First(item => item.IsAnswerKey).BookletType);
+        Assert.Equal(25, result.Records.First(item => item.IsAnswerKey).Answers.Length);
+    }
+
+    [Fact]
     public async Task ClassListParser_ReadsHeadersAndPreservesLeadingZero()
     {
         await using var stream = CreateWorkbook(new[] { ("Öğrenci No", "Ad", "Soyad"), ("00123456", "Çağrı", "Öztürk") });
@@ -64,6 +77,28 @@ public sealed class FileParserTests
         var result = await new ClassListParser().ParseAsync(stream, default);
         Assert.Single(result.Students);
         Assert.Contains(result.Issues, item => item.Message == "Öğrenci numarası tekrar ediyor.");
+    }
+
+    [Fact]
+    public async Task ClassListParser_ReadsCombinedNameColumn()
+    {
+        await using var stream = new MemoryStream();
+        using (var workbook = new XLWorkbook())
+        {
+            var sheet = workbook.AddWorksheet("Klasik");
+            sheet.Cell(1, 1).Value = "Öğrenci No";
+            sheet.Cell(1, 2).Value = "Ad Soyad";
+            sheet.Cell(1, 3).Value = "Aldığı Not";
+            sheet.Cell(2, 1).Value = "90000001";
+            sheet.Cell(2, 2).Value = "Çağrı Öztürk";
+            sheet.Cell(2, 3).Value = 88;
+            workbook.SaveAs(stream);
+        }
+        stream.Position = 0;
+        var result = await new ClassListParser().ParseAsync(stream, default);
+        var student = Assert.Single(result.Students);
+        Assert.Equal("Çağrı", student.FirstName);
+        Assert.Equal("Öztürk", student.LastName);
     }
 
     [Fact]

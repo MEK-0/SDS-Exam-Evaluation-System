@@ -41,6 +41,19 @@ public sealed class AnswerKeyServiceTests
     }
 
     [Fact]
+    public async Task Update_WithReversedBookletBMappingValidatesBothBooklets()
+    {
+        await using var setup = await CreateContextAsync(UserRole.Instructor);
+        var service = new AnswerKeyService(setup.Context, new TestCurrentUser(setup.UserId, UserRole.Instructor));
+        var request = CreateRequest(2, [new AnswerKeyQuestionRequest { CanonicalQuestionNumber = 1, Points = 5 }, new AnswerKeyQuestionRequest { CanonicalQuestionNumber = 2, Points = 5 }], [CreateBooklet("A", (1, 1, "A"), (2, 2, "B")), CreateBooklet("B", (2, 1, "C"), (1, 2, "D"))]);
+        var result = await service.UpdateAsync(setup.ExamId, request, default);
+        Assert.True(result!.IsComplete);
+        var bookletB = Assert.Single(result.Booklets, item => item.BookletCode == "B");
+        Assert.Equal(2, bookletB.Questions.Single(item => item.DisplayQuestionNumber == 1).ExamQuestionNumber);
+        Assert.Equal(1, bookletB.Questions.Single(item => item.DisplayQuestionNumber == 2).ExamQuestionNumber);
+    }
+
+    [Fact]
     public async Task Update_WithMultipleAcceptedAnswers_SavesWhenEnabled()
     {
         await using var setup = await CreateContextAsync(UserRole.Instructor);

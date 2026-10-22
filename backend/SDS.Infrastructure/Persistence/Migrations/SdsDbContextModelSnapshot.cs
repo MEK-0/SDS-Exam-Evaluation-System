@@ -77,6 +77,42 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("BookletQuestions");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.BookletQuestionMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BookletQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReferenceBookletId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ReferenceQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookletId");
+
+                    b.HasIndex("ReferenceBookletId");
+
+                    b.HasIndex("ExamId", "BookletId", "BookletQuestionNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ExamId", "ReferenceBookletId", "ReferenceQuestionNumber")
+                        .IsUnique();
+
+                    b.ToTable("BookletQuestionMappings");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.Course", b =>
                 {
                     b.Property<Guid>("Id")
@@ -146,6 +182,15 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("MatchingCalculated")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("MatchingConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("MatchingUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -280,8 +325,8 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Points")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)");
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -294,6 +339,95 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ExamQuestions");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.ExamResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("AdjustedScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<DateTime>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ImportedStudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("RawScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportedStudentId");
+
+                    b.HasIndex("ExamId", "ImportedStudentId")
+                        .IsUnique();
+
+                    b.ToTable("ExamResults");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.GradeAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExamResultId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<decimal>("NewScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<decimal>("PreviousScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExamResultId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GradeAdjustments");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ImportValidationIssue", b =>
@@ -347,6 +481,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<int>("RowNumber")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("StudentNumber")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -358,6 +497,37 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ImportedStudents");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.LearningOutcome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "Description")
+                        .IsUnique();
+
+                    b.ToTable("LearningOutcomes");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.OpticalExamRecord", b =>
@@ -382,6 +552,9 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ExamImportId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("IsAnswerKey")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsValid")
                         .HasColumnType("boolean");
@@ -458,6 +631,167 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("OpticalFormConfigurations");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.ProjectGradeImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ImportedStudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ProjectScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportedStudentId");
+
+                    b.HasIndex("ExamId", "ImportedStudentId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectGradeImports");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamQuestionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LearningOutcomeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExamQuestionId");
+
+                    b.HasIndex("LearningOutcomeId");
+
+                    b.HasIndex("ExamId", "ExamQuestionId", "LearningOutcomeId")
+                        .IsUnique();
+
+                    b.ToTable("QuestionLearningOutcomes");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.StudentMatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ImportedStudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsAbsent")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MatchType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("MatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MatchedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OpticalExamRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImportedStudentId");
+
+                    b.HasIndex("MatchedByUserId");
+
+                    b.HasIndex("OpticalExamRecordId");
+
+                    b.HasIndex("ExamId", "ImportedStudentId")
+                        .IsUnique();
+
+                    b.HasIndex("ExamId", "OpticalExamRecordId")
+                        .IsUnique();
+
+                    b.ToTable("StudentMatches");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.StudentMatchAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("NewImportedStudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("NewOpticalExamRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PreviousImportedStudentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PreviousOpticalExamRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("StudentMatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentMatchId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ExamId", "OccurredAt");
+
+                    b.ToTable("StudentMatchAudits");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -517,6 +851,33 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("ExamBooklet");
 
                     b.Navigation("ExamQuestion");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.BookletQuestionMapping", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.ExamBooklet", "Booklet")
+                        .WithMany("Mappings")
+                        .HasForeignKey("BookletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany("BookletQuestionMappings")
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.ExamBooklet", "ReferenceBooklet")
+                        .WithMany("ReferenceMappings")
+                        .HasForeignKey("ReferenceBookletId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Booklet");
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("ReferenceBooklet");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.Course", b =>
@@ -604,6 +965,44 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("ExamAnswerKey");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.ExamResult", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.ImportedStudent", "ImportedStudent")
+                        .WithMany()
+                        .HasForeignKey("ImportedStudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("ImportedStudent");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.GradeAdjustment", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.ExamResult", "ExamResult")
+                        .WithMany("Adjustments")
+                        .HasForeignKey("ExamResultId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ExamResult");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.ImportValidationIssue", b =>
                 {
                     b.HasOne("SDS.Domain.Entities.ExamImport", "ExamImport")
@@ -624,6 +1023,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ExamImport");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.LearningOutcome", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.OpticalExamRecord", b =>
@@ -648,6 +1058,112 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("Exam");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.ProjectGradeImport", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.ImportedStudent", "ImportedStudent")
+                        .WithMany()
+                        .HasForeignKey("ImportedStudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("ImportedStudent");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany("QuestionLearningOutcomes")
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.ExamQuestion", "ExamQuestion")
+                        .WithMany("LearningOutcomeLinks")
+                        .HasForeignKey("ExamQuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.LearningOutcome", "LearningOutcome")
+                        .WithMany("QuestionLinks")
+                        .HasForeignKey("LearningOutcomeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("ExamQuestion");
+
+                    b.Navigation("LearningOutcome");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.StudentMatch", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.ImportedStudent", "ImportedStudent")
+                        .WithMany()
+                        .HasForeignKey("ImportedStudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.User", "MatchedByUser")
+                        .WithMany()
+                        .HasForeignKey("MatchedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.OpticalExamRecord", "OpticalExamRecord")
+                        .WithMany()
+                        .HasForeignKey("OpticalExamRecordId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("ImportedStudent");
+
+                    b.Navigation("MatchedByUser");
+
+                    b.Navigation("OpticalExamRecord");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.StudentMatchAudit", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SDS.Domain.Entities.StudentMatch", "StudentMatch")
+                        .WithMany("Audits")
+                        .HasForeignKey("StudentMatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SDS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("StudentMatch");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.AcademicYear", b =>
                 {
                     b.Navigation("Courses");
@@ -664,9 +1180,13 @@ namespace SDS.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("AnswerKey");
 
+                    b.Navigation("BookletQuestionMappings");
+
                     b.Navigation("Imports");
 
                     b.Navigation("OpticalFormConfiguration");
+
+                    b.Navigation("QuestionLearningOutcomes");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ExamAnswerKey", b =>
@@ -678,7 +1198,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SDS.Domain.Entities.ExamBooklet", b =>
                 {
+                    b.Navigation("Mappings");
+
                     b.Navigation("Questions");
+
+                    b.Navigation("ReferenceMappings");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ExamImport", b =>
@@ -693,6 +1217,23 @@ namespace SDS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SDS.Domain.Entities.ExamQuestion", b =>
                 {
                     b.Navigation("BookletQuestions");
+
+                    b.Navigation("LearningOutcomeLinks");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.ExamResult", b =>
+                {
+                    b.Navigation("Adjustments");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.LearningOutcome", b =>
+                {
+                    b.Navigation("QuestionLinks");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.StudentMatch", b =>
+                {
+                    b.Navigation("Audits");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.User", b =>

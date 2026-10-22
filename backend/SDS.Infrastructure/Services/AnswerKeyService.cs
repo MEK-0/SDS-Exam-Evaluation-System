@@ -63,7 +63,7 @@ public sealed class AnswerKeyService(SdsDbContext dbContext, ICurrentUser curren
         if (request.Booklets.Select(item => item.BookletCode.Trim().ToUpperInvariant()).Where(item => item.Length > 0).Distinct().Count() != request.Booklets.Count) issues.Add("Kitapçık kodları tekrar edemez ve boş olamaz.");
         var questions = request.Questions.GroupBy(item => item.CanonicalQuestionNumber).ToList();
         if (questions.Any(item => item.Key <= 0 || item.Key > request.QuestionCount || item.Count() > 1)) issues.Add("Mantıksal soru numaraları geçersiz veya tekrarlı.");
-        if (request.Questions.Any(item => item.Points < 0 || item.Status == ExamQuestionStatus.Active && item.Points <= 0)) issues.Add("Aktif soru puanları pozitif olmalıdır.");
+        if (request.Questions.Any(item => item.Status == ExamQuestionStatus.Active && item.CanonicalQuestionNumber <= 0)) issues.Add("Aktif soru numarası geçersiz.");
         foreach (var booklet in request.Booklets)
         {
             var displayNumbers = booklet.Questions.GroupBy(item => item.DisplayQuestionNumber).ToList();
@@ -80,11 +80,6 @@ public sealed class AnswerKeyService(SdsDbContext dbContext, ICurrentUser curren
                 if (logicalQuestion?.Status == ExamQuestionStatus.Active && accepted.Count == 0) continue;
             }
         }
-        if (!request.DynamicScoring && request.Questions.Count == request.QuestionCount && request.Questions.All(item => item.Status == ExamQuestionStatus.Active || item.Points >= 0))
-        {
-            var expected = request.CancelledQuestionPolicy == CancelledQuestionPolicy.ExcludeFromTotal ? request.Questions.Where(item => item.Status == ExamQuestionStatus.Active).Sum(item => item.Points) : request.Questions.Sum(item => item.Points);
-            if (expected != request.MaximumScore) issues.Add("Soru puanları toplamı maksimum puanla uyumlu olmalıdır.");
-        }
         return issues;
     }
 
@@ -96,7 +91,8 @@ public sealed class AnswerKeyService(SdsDbContext dbContext, ICurrentUser curren
     private static ExamAnswerKey CreateAnswerKey(Guid examId, UpdateAnswerKeyRequest request, bool isComplete)
     {
         var key = new ExamAnswerKey { Id = Guid.NewGuid(), ExamId = examId, MaximumScore = request.MaximumScore, QuestionCount = request.QuestionCount, DynamicScoring = request.DynamicScoring, AllowMultipleAnswers = request.AllowMultipleAnswers, CancelledQuestionPolicy = request.CancelledQuestionPolicy, Status = isComplete ? AnswerKeyStatus.Validated : AnswerKeyStatus.Draft, UpdatedAt = DateTime.UtcNow };
-        key.Questions = request.Questions.Select(item => new ExamQuestion { Id = Guid.NewGuid(), ExamAnswerKeyId = key.Id, CanonicalQuestionNumber = item.CanonicalQuestionNumber, Points = item.Points, Status = item.Status }).ToList();
+        var points = AnswerKeyPointCalculator.Calculate(request.MaximumScore, request.QuestionCount);
+        key.Questions = request.Questions.Select(item => new ExamQuestion { Id = Guid.NewGuid(), ExamAnswerKeyId = key.Id, CanonicalQuestionNumber = item.CanonicalQuestionNumber, Points = points[item.CanonicalQuestionNumber - 1], Status = item.Status }).ToList();
         var questionMap = key.Questions.ToDictionary(item => item.CanonicalQuestionNumber);
         key.Booklets = request.Booklets.Select(booklet => new ExamBooklet { Id = Guid.NewGuid(), ExamAnswerKeyId = key.Id, BookletCode = booklet.BookletCode.Trim().ToUpperInvariant(), QuestionCount = booklet.Questions.Count, Questions = booklet.Questions.Select(item => new BookletQuestion { Id = Guid.NewGuid(), ExamBookletId = Guid.Empty, ExamQuestionId = questionMap[item.ExamQuestionNumber].Id, DisplayQuestionNumber = item.DisplayQuestionNumber, AcceptedAnswers = string.Join(',', item.AcceptedAnswers.Select(answer => answer.Trim().ToUpperInvariant()).Distinct()) }).ToList() }).ToList();
         foreach (var booklet in key.Booklets) foreach (var question in booklet.Questions) question.ExamBookletId = booklet.Id;

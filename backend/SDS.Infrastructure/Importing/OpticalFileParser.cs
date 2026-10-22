@@ -28,12 +28,13 @@ public sealed class OpticalFileParser : IOpticalFileParser
     private static ParsedOpticalRecord ParseLine(string line, int lineNumber, OpticalFormConfigurationInput configuration)
     {
         if (string.IsNullOrWhiteSpace(line)) return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, string.Empty, string.Empty, false, "Satır boş.");
+        if (line.StartsWith("ANSWER_KEY_", StringComparison.OrdinalIgnoreCase)) return ParseAnswerKeyLine(line, lineNumber);
         try
         {
             var studentNumber = Slice(line, configuration.StudentNumberStart, configuration.StudentNumberLength, "öğrenci numarası").Trim();
             var studentName = configuration.StudentNameStart.HasValue && configuration.StudentNameLength.HasValue ? Slice(line, configuration.StudentNameStart.Value, configuration.StudentNameLength.Value, "öğrenci adı").Trim() : string.Empty;
             var bookletType = Slice(line, configuration.BookletTypeStart, configuration.BookletTypeLength, "kitapçık türü").Trim();
-            var answers = Slice(line, configuration.AnswersStart, configuration.AnswersLength).TrimEnd();
+            var answers = Slice(line, configuration.AnswersStart, configuration.AnswersLength);
             if (string.IsNullOrWhiteSpace(studentNumber)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Öğrenci numarası boş.");
             if (string.IsNullOrWhiteSpace(bookletType)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Kitapçık türü boş.");
             return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, true, null);
@@ -42,6 +43,22 @@ public sealed class OpticalFileParser : IOpticalFileParser
         {
             return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, string.Empty, string.Empty, false, exception.Message);
         }
+    }
+
+    private static ParsedOpticalRecord ParseAnswerKeyLine(string line, int lineNumber)
+    {
+        var separatorIndex = line.IndexOf('|');
+        var header = separatorIndex > 0 ? line[..separatorIndex].Trim().ToUpperInvariant() : line.Trim().ToUpperInvariant();
+        var bookletType = header switch
+        {
+            "ANSWER_KEY_A" => "A",
+            "ANSWER_KEY_B" => "B",
+            _ => string.Empty
+        };
+        if (string.IsNullOrWhiteSpace(bookletType)) return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, string.Empty, string.Empty, false, "Cevap anahtarı satırı A veya B kitapçığı olarak tanınamadı.", true);
+        var answers = separatorIndex > 0 ? line[(separatorIndex + 1)..].Trim() : string.Empty;
+        if (answers.Length != 25 || answers.Any(answer => answer is not ('A' or 'B' or 'C' or 'D' or 'E' or 'a' or 'b' or 'c' or 'd' or 'e'))) return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, bookletType, answers, false, "Cevap anahtarı satırı 25 adet A-E seçeneği içermelidir.", true);
+        return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, bookletType, answers.ToUpperInvariant(), true, null, true);
     }
 
     private static string Slice(string line, int start, int length, string fieldName = "alan")

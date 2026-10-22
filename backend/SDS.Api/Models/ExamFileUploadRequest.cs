@@ -6,6 +6,7 @@ namespace SDS.Api.Models;
 public sealed class ExamFileUploadRequest
 {
     public IFormFile? OpticalFile { get; set; }
+    public List<IFormFile> ClassListFiles { get; set; } = [];
     public IFormFile? ClassListFile { get; set; }
     public int StudentNumberStart { get; set; }
     public int StudentNumberLength { get; set; }

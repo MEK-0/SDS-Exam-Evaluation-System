@@ -73,7 +73,7 @@ PostgreSQL'i başlatın:
 docker compose up -d
 ```
 
-Backend ortam değişkenlerini yükleyerek API'yi çalıştırın:
+Backend'i Development ortamında çalıştırın. `backend/SDS.Api/Properties/launchSettings.json` dosyası bu ortamı otomatik seçer. JWT anahtarı, veritabanı bağlantısı ve seed parolaları Git'e alınmayan `.env` dosyasından yüklenir:
 
 ```bash
 set -a
@@ -81,6 +81,20 @@ source .env
 set +a
 cd backend
 dotnet restore
+dotnet run --project SDS.Api
+```
+
+İsterseniz aynı hassas ayarları `.env` yerine .NET User Secrets ile tanımlayabilirsiniz. Değerleri yerel ve güvenli değerlerle doldurun; gerçek parolaları terminal çıktısına veya kaynak koda eklemeyin:
+
+```bash
+cd backend
+dotnet user-secrets set "ConnectionStrings:SdsDatabase" "<yerel-postgresql-bağlantı-cümlesi>" --project SDS.Api
+dotnet user-secrets set "Jwt:Key" "<en-az-32-karakterlik-yerel-anahtar>" --project SDS.Api
+dotnet user-secrets set "Jwt:Issuer" "SDS.Api" --project SDS.Api
+dotnet user-secrets set "Jwt:Audience" "SDS.Frontend" --project SDS.Api
+dotnet user-secrets set "Seed:AdminPassword" "<yerel-admin-parolası>" --project SDS.Api
+dotnet user-secrets set "Seed:AdminInstructorPassword" "<yerel-admin-instructor-parolası>" --project SDS.Api
+dotnet user-secrets set "Seed:InstructorPassword" "<yerel-instructor-parolası>" --project SDS.Api
 dotnet run --project SDS.Api
 ```
 

@@ -20,8 +20,10 @@ public sealed class ClassListParser : IClassListParser
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var row = worksheet.Row(rowNumber);
-                var values = new[] { row.Cell(headers.StudentNumberColumn).GetFormattedString().Trim(), row.Cell(headers.FirstNameColumn).GetFormattedString().Trim(), row.Cell(headers.LastNameColumn).GetFormattedString().Trim() };
-                if (values.All(string.IsNullOrWhiteSpace)) continue;
+                var studentNumber = row.Cell(headers.StudentNumberColumn).GetFormattedString().Trim();
+                var nameValues = headers.FullNameColumn.HasValue ? SplitFullName(row.Cell(headers.FullNameColumn.Value).GetFormattedString()) : (row.Cell(headers.FirstNameColumn!.Value).GetFormattedString().Trim(), row.Cell(headers.LastNameColumn!.Value).GetFormattedString().Trim());
+                var values = new[] { studentNumber, nameValues.Item1, nameValues.Item2 };
+                if (values.All(value => string.IsNullOrWhiteSpace(value))) continue;
                 if (string.IsNullOrWhiteSpace(values[0])) { issues.Add(new ImportIssue("classList", rowNumber, "Öğrenci numarası boş.")); continue; }
                 if (string.IsNullOrWhiteSpace(values[1]) || string.IsNullOrWhiteSpace(values[2])) { issues.Add(new ImportIssue("classList", rowNumber, "Ad veya soyad boş.")); continue; }
                 if (students.Any(item => item.StudentNumber == values[0])) { issues.Add(new ImportIssue("classList", rowNumber, "Öğrenci numarası tekrar ediyor.")); continue; }
@@ -45,12 +47,19 @@ public sealed class ClassListParser : IClassListParser
             var studentNumber = FindColumn(columns, "öğrenci numarası", "ogrenci numarasi", "öğrenci no", "ogrenci no", "student number", "studentnumber");
             var firstName = FindColumn(columns, "ad", "first name", "firstname");
             var lastName = FindColumn(columns, "soyad", "soyadı", "soyadi", "last name", "lastname");
-            if (studentNumber.HasValue && firstName.HasValue && lastName.HasValue) return new HeaderMap(rowNumber, studentNumber.Value, firstName.Value, lastName.Value);
+            var fullName = FindColumn(columns, "ad soyad", "adsoyad", "adı soyadı", "adisoyadi", "name", "fullname");
+            if (studentNumber.HasValue && firstName.HasValue && lastName.HasValue) return new HeaderMap(rowNumber, studentNumber.Value, firstName, lastName, null);
+            if (studentNumber.HasValue && fullName.HasValue) return new HeaderMap(rowNumber, studentNumber.Value, null, null, fullName);
         }
         throw new ArgumentException("XLSX başlıklarında öğrenci numarası, ad ve soyad sütunları bulunamadı.");
     }
 
     private static int? FindColumn(IReadOnlyDictionary<string, int> columns, params string[] names) => names.Select(Normalize).Where(columns.ContainsKey).Select(item => columns[item]).FirstOrDefault() is var column && column > 0 ? column : null;
+    private static (string FirstName, string LastName) SplitFullName(string value)
+    {
+        var parts = value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length < 2 ? (value.Trim(), string.Empty) : (string.Join(' ', parts[..^1]), parts[^1]);
+    }
     private static string Normalize(string value) => value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty);
-    private sealed record HeaderMap(int RowNumber, int StudentNumberColumn, int FirstNameColumn, int LastNameColumn);
+    private sealed record HeaderMap(int RowNumber, int StudentNumberColumn, int? FirstNameColumn, int? LastNameColumn, int? FullNameColumn);
 }

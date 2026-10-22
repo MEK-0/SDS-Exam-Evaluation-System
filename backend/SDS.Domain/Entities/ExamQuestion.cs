@@ -10,6 +10,7 @@ public sealed class ExamQuestion
     public ExamQuestionStatus Status { get; set; } = ExamQuestionStatus.Active;
     public ExamAnswerKey ExamAnswerKey { get; set; } = null!;
     public ICollection<BookletQuestion> BookletQuestions { get; set; } = new List<BookletQuestion>();
+    public ICollection<QuestionLearningOutcome> LearningOutcomeLinks { get; set; } = new List<QuestionLearningOutcome>();
 }
 
 public enum ExamQuestionStatus

@@ -20,6 +20,14 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
     public DbSet<ExamBooklet> ExamBooklets => Set<ExamBooklet>();
     public DbSet<ExamQuestion> ExamQuestions => Set<ExamQuestion>();
     public DbSet<BookletQuestion> BookletQuestions => Set<BookletQuestion>();
+    public DbSet<StudentMatch> StudentMatches => Set<StudentMatch>();
+    public DbSet<StudentMatchAudit> StudentMatchAudits => Set<StudentMatchAudit>();
+    public DbSet<ExamResult> ExamResults => Set<ExamResult>();
+    public DbSet<GradeAdjustment> GradeAdjustments => Set<GradeAdjustment>();
+    public DbSet<ProjectGradeImport> ProjectGradeImports => Set<ProjectGradeImport>();
+    public DbSet<LearningOutcome> LearningOutcomes => Set<LearningOutcome>();
+    public DbSet<QuestionLearningOutcome> QuestionLearningOutcomes => Set<QuestionLearningOutcome>();
+    public DbSet<BookletQuestionMapping> BookletQuestionMappings => Set<BookletQuestionMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,12 +92,14 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.Property(item => item.StudentNumber).HasMaxLength(64).IsRequired();
             entity.Property(item => item.FirstName).HasMaxLength(160).IsRequired();
             entity.Property(item => item.LastName).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.SourceFileName).HasMaxLength(255).IsRequired();
             entity.HasOne(item => item.ExamImport).WithMany(item => item.ImportedStudents).HasForeignKey(item => item.ExamImportId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<OpticalExamRecord>(entity =>
         {
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.ExamImportId, item.LineNumber }).IsUnique();
+            entity.Property(item => item.IsAnswerKey).IsRequired();
             entity.Property(item => item.StudentNumber).HasMaxLength(64).IsRequired();
             entity.Property(item => item.BookletType).HasMaxLength(16).IsRequired();
             entity.Property(item => item.Answers).HasMaxLength(4096).IsRequired();
@@ -124,7 +134,7 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
         {
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.ExamAnswerKeyId, item.CanonicalQuestionNumber }).IsUnique();
-            entity.Property(item => item.Points).HasPrecision(8, 2).IsRequired();
+            entity.Property(item => item.Points).HasPrecision(8, 4).IsRequired();
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.HasOne(item => item.ExamAnswerKey).WithMany(item => item.Questions).HasForeignKey(item => item.ExamAnswerKeyId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -136,6 +146,82 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.Property(item => item.AcceptedAnswers).HasMaxLength(16).IsRequired();
             entity.HasOne(item => item.ExamBooklet).WithMany(item => item.Questions).HasForeignKey(item => item.ExamBookletId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(item => item.ExamQuestion).WithMany(item => item.BookletQuestions).HasForeignKey(item => item.ExamQuestionId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StudentMatch>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.ImportedStudentId }).IsUnique();
+            entity.HasIndex(item => new { item.ExamId, item.OpticalExamRecordId }).IsUnique();
+            entity.Property(item => item.MatchType).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ImportedStudent).WithMany().HasForeignKey(item => item.ImportedStudentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.OpticalExamRecord).WithMany().HasForeignKey(item => item.OpticalExamRecordId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.MatchedByUser).WithMany().HasForeignKey(item => item.MatchedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StudentMatchAudit>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.OccurredAt });
+            entity.Property(item => item.Action).HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.StudentMatch).WithMany(item => item.Audits).HasForeignKey(item => item.StudentMatchId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ExamResult>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.ImportedStudentId }).IsUnique();
+            entity.Property(item => item.RawScore).HasPrecision(8, 2);
+            entity.Property(item => item.AdjustedScore).HasPrecision(8, 2);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ImportedStudent).WithMany().HasForeignKey(item => item.ImportedStudentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<GradeAdjustment>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+            entity.Property(item => item.Type).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Amount).HasPrecision(8, 2);
+            entity.Property(item => item.PreviousScore).HasPrecision(8, 2);
+            entity.Property(item => item.NewScore).HasPrecision(8, 2);
+            entity.Property(item => item.IdempotencyKey).HasMaxLength(128);
+            entity.HasOne(item => item.ExamResult).WithMany(item => item.Adjustments).HasForeignKey(item => item.ExamResultId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ProjectGradeImport>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.ImportedStudentId }).IsUnique();
+            entity.Property(item => item.ProjectScore).HasPrecision(8, 2).IsRequired();
+            entity.Property(item => item.SourceFileName).HasMaxLength(255).IsRequired();
+            entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ImportedStudent).WithMany().HasForeignKey(item => item.ImportedStudentId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<LearningOutcome>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.CourseId, item.Description }).IsUnique();
+            entity.Property(item => item.Description).HasMaxLength(2000).IsRequired();
+            entity.HasOne(item => item.Course).WithMany().HasForeignKey(item => item.CourseId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<QuestionLearningOutcome>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.ExamQuestionId, item.LearningOutcomeId }).IsUnique();
+            entity.HasOne(item => item.Exam).WithMany(item => item.QuestionLearningOutcomes).HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ExamQuestion).WithMany(item => item.LearningOutcomeLinks).HasForeignKey(item => item.ExamQuestionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.LearningOutcome).WithMany(item => item.QuestionLinks).HasForeignKey(item => item.LearningOutcomeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<BookletQuestionMapping>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.BookletId, item.BookletQuestionNumber }).IsUnique();
+            entity.HasIndex(item => new { item.ExamId, item.ReferenceBookletId, item.ReferenceQuestionNumber }).IsUnique();
+            entity.HasOne(item => item.Exam).WithMany(item => item.BookletQuestionMappings).HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ReferenceBooklet).WithMany(item => item.ReferenceMappings).HasForeignKey(item => item.ReferenceBookletId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Booklet).WithMany(item => item.Mappings).HasForeignKey(item => item.BookletId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

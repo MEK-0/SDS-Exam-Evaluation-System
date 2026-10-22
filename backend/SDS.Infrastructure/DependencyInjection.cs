@@ -8,6 +8,11 @@ using SDS.Application.Courses;
 using SDS.Application.Exams;
 using SDS.Application.Imports;
 using SDS.Application.AnswerKeys;
+using SDS.Application.Matching;
+using SDS.Application.Grades;
+using SDS.Application.LearningOutcomes;
+using SDS.Application.Analysis;
+using SDS.Application.OpenEnded;
 using SDS.Infrastructure.Importing;
 using SDS.Infrastructure.Seeding;
 using SDS.Infrastructure.Services;
@@ -18,7 +23,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("SdsDatabase") ?? "Host=localhost;Port=5432;Database=sds;Username=sds";
+        var connectionString = configuration.GetConnectionString("SdsDatabase") ?? throw new InvalidOperationException("ConnectionStrings:SdsDatabase yapılandırması bulunamadı.");
         services.AddDbContext<SdsDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICourseService, CourseService>();
@@ -27,6 +32,11 @@ public static class DependencyInjection
         services.AddScoped<IClassListParser, ClassListParser>();
         services.AddScoped<IStudentDataImportService, StudentDataImportService>();
         services.AddScoped<IAnswerKeyService, AnswerKeyService>();
+        services.AddScoped<IStudentMatchingService, StudentMatchingService>();
+        services.AddScoped<IGradeService, GradeService>();
+        services.AddScoped<ILearningOutcomeService, LearningOutcomeService>();
+        services.AddScoped<IAnalysisService, AnalysisService>();
+        services.AddScoped<IOpenEndedService, OpenEndedService>();
         services.AddScoped<DevelopmentSeeder>();
         return services;
     }

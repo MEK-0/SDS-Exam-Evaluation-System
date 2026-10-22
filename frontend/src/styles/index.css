@@ -8,3 +8,23 @@
   body { margin: 0; min-width: 320px; background: var(--sds-page); }
   * { box-sizing: border-box; }
 }
+
+@layer components {
+  .grid.gap-7 { min-width: 0; }
+  .grid.gap-7 > section { min-width: 0; }
+  .grid.gap-7 .overflow-x-auto { max-width: 100%; }
+  .analysis-page { min-width: 0; max-width: 100%; }
+  .analysis-page > * { min-width: 0; max-width: 100%; }
+  .analysis-page section { min-width: 0; max-width: 100%; }
+  .analysis-page .grid { min-width: 0; }
+  .analysis-page .overflow-x-auto { max-width: 100%; }
+}
+
+@media print {
+  body { background: white; }
+  header, nav, .print\\:hidden { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  .analysis-page { gap: 12px; }
+  .analysis-page section { break-inside: avoid; box-shadow: none !important; }
+  .overflow-x-auto, .overflow-auto { overflow: visible !important; }
+}
