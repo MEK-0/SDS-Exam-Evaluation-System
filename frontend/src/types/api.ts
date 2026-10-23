@@ -1,7 +1,15 @@
 /* Backend API yanıtlarında kullanılan ortak frontend tiplerini tanımlar. */
 export interface ApiResponse<T> { success: boolean; data: T | null; message: string | null; errors: string[] | null; }
 
-export interface AuthUser { id: string; username: string; displayName: string; role: string; }
+export interface AuthUser { id: string; username: string; displayName: string; role: string; mustChangePassword: boolean; }
+export type UserRole = 'Admin' | 'AdminInstructor' | 'Instructor';
+export interface ManagedUser { id: string; username: string; displayName: string; personnelNumber: string | null; role: UserRole; isActive: boolean; mustChangePassword: boolean; }
+export interface ManagedCourse { id: string; code: string; name: string; isAssigned: boolean; }
+export interface CreateManagedUserResponse { user: ManagedUser; temporaryPassword: string; }
+export interface PasswordResetRequest { id: string; userId: string; displayName: string; username: string; status: 'Pending' | 'Approved' | 'Rejected'; requestedAt: string; processedAt: string | null; }
+export interface PasswordResetApprovalResponse { request: PasswordResetRequest; temporaryPassword: string; }
+export interface GradingPolicy { id: string; aaMinimum: number; baMinimum: number; bbMinimum: number; cbMinimum: number; ccMinimum: number; dcMinimum: number; midtermWeight: number; finalWeight: number; makeUpWeight: number; updatedAt: string; }
+export interface OpticalSystemSettings { id: string; studentNumberStart: number; studentNumberLength: number; studentNameStart: number | null; studentNameLength: number | null; bookletTypeStart: number; bookletTypeLength: number; examTypeStart: number | null; examTypeLength: number | null; answersStart: number; answersLength: number; encodingName: string; updatedAt: string; }
 export interface LoginResponse { accessToken: string; expiresAt: string; mustChangePassword: boolean; user: AuthUser; }
 export interface Course { id: string; code: string; name: string; academicYearId: string; academicYear: string; instructorCount: number; examCount: number; }
 export interface AcademicYear { id: string; name: string; isActive: boolean; }
@@ -53,3 +61,6 @@ export interface ChoiceDistribution { questionNumber: number; bookletCode: strin
 export interface LearningOutcomeAnalysis { id: string; description: string; questionNumbers: number[]; successRate: number | null; }
 export interface AnalysisResponse { summary: AnalysisSummary; general: AnalysisGeneral; students: AnalysisStudent[]; selectedStudent: AnalysisStudentDetail | null; scoreDistribution: ScoreDistribution[]; questions: QuestionAnalysis[]; choices: ChoiceDistribution[]; learningOutcomes: LearningOutcomeAnalysis[]; }
 export interface OpenEndedSettings { examId: string; questionCount: number; maximumScore: number; updatedAt: string; }
+export interface TermAnalysisSummary { totalStudents: number; participatingStudents: number; weightedAverage: number | null; successRate: number | null; midtermAverage: number | null; finalAverage: number | null; makeUpAverage: number | null; effectiveExamLabel: string; midtermWeight: number; finalWeight: number; }
+export interface TermStudent { studentNumber: string; studentName: string; midtermScore: number | null; finalScore: number | null; makeUpScore: number | null; effectiveExamScore: number | null; weightedScore: number | null; letterGrade: string | null; status: string; }
+export interface TermAnalysisResponse { summary: TermAnalysisSummary; students: TermStudent[]; letterDistribution: Array<{ letter: string; count: number }>; scoreDistribution: ScoreDistribution[]; }
