@@ -21,5 +21,10 @@ public sealed class ChangePasswordRequest
     public string NewPassword { get; set; } = string.Empty;
 }
 
+public sealed class ForgotPasswordRequest
+{
+    [Required] public string Username { get; set; } = string.Empty;
+}
+
 public sealed record LoginResponse(string AccessToken, DateTime ExpiresAt, bool MustChangePassword, UserResponse User);
-public sealed record UserResponse(Guid Id, string Username, string DisplayName, string Role);
+public sealed record UserResponse(Guid Id, string Username, string DisplayName, string Role, bool MustChangePassword);

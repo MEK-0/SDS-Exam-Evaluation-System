@@ -4,12 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using SDS.Application.Auth;
 using SDS.Application.Common;
 using SDS.Application.Security;
+using SDS.Application.Admin;
 
 namespace SDS.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IAuthService authService, ICurrentUser currentUser) : ControllerBase
+public sealed class AuthController(IAuthService authService, IAdminService adminService, ICurrentUser currentUser) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("login")]
@@ -17,6 +18,14 @@ public sealed class AuthController(IAuthService authService, ICurrentUser curren
     {
         var response = await authService.LoginAsync(request, cancellationToken);
         return response is null ? Unauthorized(ApiResponse<LoginResponse>.Fail("Kullanıcı adı veya şifre hatalı.")) : Ok(ApiResponse<LoginResponse>.Ok(response));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<ActionResult<ApiResponse<object>>> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await adminService.CreatePasswordResetRequestAsync(request.Username, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { }, "Talebiniz alındı. Hesabınız varsa yönetici incelemesinden sonra işlem yapılacaktır."));
     }
 
     [Authorize]

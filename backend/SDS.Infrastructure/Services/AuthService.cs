@@ -46,5 +46,5 @@ public sealed class AuthService(SdsDbContext dbContext, IConfiguration configura
 
     private string GetRequiredSetting(string key) => configuration[key] ?? throw new InvalidOperationException($"{key} yapılandırması bulunamadı.");
     private int GetExpirationMinutes() => int.TryParse(configuration["Jwt:ExpirationMinutes"], out var value) ? value : 30;
-    private static UserResponse ToResponse(User user) => new(user.Id, user.Username, user.DisplayName, user.Role.ToString());
+    private static UserResponse ToResponse(User user) => new(user.Id, user.Username, user.DisplayName, user.Role.ToString(), user.MustChangePassword);
 }

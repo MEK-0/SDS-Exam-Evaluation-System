@@ -26,7 +26,6 @@ public sealed class ExamService(SdsDbContext dbContext, ICurrentUser currentUser
     {
         if (!await CanAccessCourseAsync(courseId, cancellationToken)) return null;
         if (!Enum.IsDefined(request.ExamType) || !Enum.IsDefined(request.EvaluationType)) throw new ArgumentException("Geçersiz sınav veya değerlendirme türü.");
-        if (await dbContext.Exams.AnyAsync(item => item.CourseId == courseId && item.ExamType == request.ExamType, cancellationToken)) throw new InvalidOperationException("Bu sınav türü için zaten bir sınav taslağı bulunuyor.");
         var exam = new Exam { Id = Guid.NewGuid(), CourseId = courseId, ExamType = request.ExamType, EvaluationType = request.EvaluationType, Status = ExamStatus.Draft, CreatedAt = DateTime.UtcNow };
         dbContext.Exams.Add(exam);
         await dbContext.SaveChangesAsync(cancellationToken);

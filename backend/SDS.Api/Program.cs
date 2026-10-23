@@ -55,6 +55,7 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors("Frontend");
 app.UseAuthentication();
+app.UseMiddleware<PasswordChangeRequiredMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

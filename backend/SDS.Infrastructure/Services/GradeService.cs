@@ -237,7 +237,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         {
             var columns = range.Worksheet.Row(row).CellsUsed().ToDictionary(item => Normalize(item.GetFormattedString()), item => item.Address.ColumnNumber);
             var number = columns.FirstOrDefault(item => item.Key is "öğrencinumarası" or "öğrencino" or "ogrencinumarasi" or "ogrencino" or "studentnumber").Value;
-            var score = columns.FirstOrDefault(item => item.Key is "projenotu" or "projeskoru" or "projectgrade" or "projectscore").Value;
+            var score = columns.FirstOrDefault(item => item.Key is "projenotu" or "projeskoru" or "projectgrade" or "projectscore" or "sinavnotu" or "sinavpuan" or "eknot" or "ekpuan").Value;
             if (number > 0 && score > 0) return (row, number, score);
         }
         throw new ArgumentException("Proje notu başlıklarında öğrenci numarası ve proje notu sütunları bulunamadı.");

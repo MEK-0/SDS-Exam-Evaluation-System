@@ -11,19 +11,34 @@ using SDS.Application.Grades;
 using SDS.Application.LearningOutcomes;
 using SDS.Application.Analysis;
 using SDS.Application.OpenEnded;
+using SDS.Application.TermAnalysis;
 
 namespace SDS.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api")]
-public sealed class ExamsController(IExamService examService, IStudentDataImportService importService, IAnswerKeyService answerKeyService, IStudentMatchingService matchingService, IGradeService gradeService, ILearningOutcomeService learningOutcomeService, IAnalysisService analysisService, IOpenEndedService openEndedService) : ControllerBase
+public sealed class ExamsController(IExamService examService, IStudentDataImportService importService, IAnswerKeyService answerKeyService, IStudentMatchingService matchingService, IGradeService gradeService, ILearningOutcomeService learningOutcomeService, IAnalysisService analysisService, IOpenEndedService openEndedService, ITermAnalysisService termAnalysisService) : ControllerBase
 {
     [HttpGet("courses/{courseId:guid}/exams")]
     public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ExamResponse>>>> GetCourseExams(Guid courseId, CancellationToken cancellationToken)
     {
         var response = await examService.GetCourseExamsAsync(courseId, cancellationToken);
         return response is null ? NotFound(ApiResponse<IReadOnlyCollection<ExamResponse>>.Fail("Ders bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<IReadOnlyCollection<ExamResponse>>.Ok(response));
+    }
+
+    [HttpGet("courses/{courseId:guid}/term-analysis")]
+    public async Task<ActionResult<ApiResponse<TermAnalysisResponse>>> GetTermAnalysis(Guid courseId, CancellationToken cancellationToken)
+    {
+        var response = await termAnalysisService.GetAsync(courseId, cancellationToken);
+        return response is null ? NotFound(ApiResponse<TermAnalysisResponse>.Fail("Dönem verileri bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<TermAnalysisResponse>.Ok(response));
+    }
+
+    [HttpGet("courses/{courseId:guid}/term-analysis/export")]
+    public async Task<IActionResult> ExportTermAnalysis(Guid courseId, CancellationToken cancellationToken)
+    {
+        var response = await termAnalysisService.ExportAsync(courseId, cancellationToken);
+        return response is null ? NotFound() : File(response, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "donem-degerlendirme.xlsx");
     }
 
     [HttpPost("courses/{courseId:guid}/exams")]

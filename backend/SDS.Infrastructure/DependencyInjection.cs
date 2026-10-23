@@ -13,6 +13,8 @@ using SDS.Application.Grades;
 using SDS.Application.LearningOutcomes;
 using SDS.Application.Analysis;
 using SDS.Application.OpenEnded;
+using SDS.Application.TermAnalysis;
+using SDS.Application.Admin;
 using SDS.Infrastructure.Importing;
 using SDS.Infrastructure.Seeding;
 using SDS.Infrastructure.Services;
@@ -37,6 +39,8 @@ public static class DependencyInjection
         services.AddScoped<ILearningOutcomeService, LearningOutcomeService>();
         services.AddScoped<IAnalysisService, AnalysisService>();
         services.AddScoped<IOpenEndedService, OpenEndedService>();
+        services.AddScoped<ITermAnalysisService, TermAnalysisService>();
+        services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<DevelopmentSeeder>();
         return services;
     }

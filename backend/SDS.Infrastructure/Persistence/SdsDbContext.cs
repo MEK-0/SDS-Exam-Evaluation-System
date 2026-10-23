@@ -28,6 +28,9 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
     public DbSet<LearningOutcome> LearningOutcomes => Set<LearningOutcome>();
     public DbSet<QuestionLearningOutcome> QuestionLearningOutcomes => Set<QuestionLearningOutcome>();
     public DbSet<BookletQuestionMapping> BookletQuestionMappings => Set<BookletQuestionMapping>();
+    public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
+    public DbSet<GradingPolicy> GradingPolicies => Set<GradingPolicy>();
+    public DbSet<OpticalSystemSettings> OpticalSystemSettings => Set<OpticalSystemSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +40,10 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasIndex(item => item.Username).IsUnique();
             entity.Property(item => item.Username).HasMaxLength(64).IsRequired();
             entity.Property(item => item.DisplayName).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.FirstName).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.LastName).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.PersonnelNumber).HasMaxLength(32);
+            entity.HasIndex(item => item.PersonnelNumber).IsUnique().HasFilter("\"PersonnelNumber\" IS NOT NULL");
             entity.Property(item => item.PasswordHash).IsRequired();
             entity.Property(item => item.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
         });
@@ -64,7 +71,7 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
         modelBuilder.Entity<Exam>(entity =>
         {
             entity.HasKey(item => item.Id);
-            entity.HasIndex(item => new { item.CourseId, item.ExamType }).IsUnique();
+            entity.HasIndex(item => new { item.CourseId, item.ExamType });
             entity.Property(item => item.ExamType).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(item => item.EvaluationType).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -222,6 +229,32 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasOne(item => item.Exam).WithMany(item => item.BookletQuestionMappings).HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(item => item.ReferenceBooklet).WithMany(item => item.ReferenceMappings).HasForeignKey(item => item.ReferenceBookletId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Booklet).WithMany(item => item.Mappings).HasForeignKey(item => item.BookletId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PasswordResetRequest>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.UserId, item.Status });
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ProcessedByUser).WithMany().HasForeignKey(item => item.ProcessedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<GradingPolicy>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.AaMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.BaMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.BbMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.CbMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.CcMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.DcMinimum).HasPrecision(5, 2);
+            entity.Property(item => item.MidtermWeight).HasPrecision(5, 2);
+            entity.Property(item => item.FinalWeight).HasPrecision(5, 2);
+            entity.Property(item => item.MakeUpWeight).HasPrecision(5, 2);
+        });
+        modelBuilder.Entity<OpticalSystemSettings>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EncodingName).HasMaxLength(64).IsRequired();
         });
     }
 }
