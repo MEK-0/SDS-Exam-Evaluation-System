@@ -199,8 +199,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId", "ExamType")
-                        .IsUnique();
+                    b.HasIndex("CourseId", "ExamType");
 
                     b.ToTable("Exams");
                 });
@@ -430,6 +429,59 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("GradeAdjustments");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.GradingPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AaMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("BaMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("BbMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("CbMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("CcMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("DcMinimum")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("FinalWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("MakeUpWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("MidtermWeight")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GradingPolicies");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.ImportValidationIssue", b =>
                 {
                     b.Property<Guid>("Id")
@@ -631,6 +683,90 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("OpticalFormConfigurations");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalSystemSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AnswersLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AnswersStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookletTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookletTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EncodingName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("ExamTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExamTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StudentNameLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StudentNameStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberStart")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("OpticalSystemSettings");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ProcessedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedByUserId");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("PasswordResetRequests");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.ProjectGradeImport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -806,8 +942,18 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<bool>("MustChangePassword")
                         .HasColumnType("boolean");
@@ -815,6 +961,10 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PersonnelNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -827,6 +977,10 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PersonnelNumber")
+                        .IsUnique()
+                        .HasFilter("\"PersonnelNumber\" IS NOT NULL");
 
                     b.HasIndex("Username")
                         .IsUnique();
@@ -1056,6 +1210,24 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Exam");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.User", "ProcessedByUser")
+                        .WithMany()
+                        .HasForeignKey("ProcessedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SDS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProcessedByUser");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ProjectGradeImport", b =>
