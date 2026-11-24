@@ -17,6 +17,9 @@ frontend/.vite/
 *.sqlite
 
 AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+.claude/
 docs/phases/
 docs/references/
 docs/internal/
