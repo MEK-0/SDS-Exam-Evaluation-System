@@ -1,10 +1,14 @@
 ﻿// Cevap anahtarı puanlarının eşit dağılımını dört ondalık hassasiyetle saklar.
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using SDS.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace SDS.Infrastructure.Persistence.Migrations;
 
+[DbContext(typeof(SdsDbContext))]
+[Migration("20261022190000_UiRevisionAnswerKeyPrecision")]
 public partial class UiRevisionAnswerKeyPrecision : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

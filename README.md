@@ -13,14 +13,12 @@ SDS, Selçuk Üniversitesi bağlamında öğretim üyelerinin sınav değerlendi
 - Cevap anahtarı yönetimi
 - Çoklu kitapçık desteği
 - Kitapçıklar arasında soru eşleştirme
-
-Aşağıdaki özellikler henüz tamamlanmamıştır:
-
-- Öğrenci ve optik kayıt eşleştirme algoritması
-- Otomatik puanlama motoru
-- Öğrenme çıktısı analizi
-- Raporlama ve Excel dışa aktarma
-- Tam kapsamlı yönetim paneli
+- Öğrenci ve optik kayıt eşleştirme (otomatik ve manuel)
+- Otomatik puanlama, not düzenleme, bonus ve proje notu yükleme
+- Açık uçlu sınav not girişi
+- Öğrenme çıktısı ve soru ilişkilendirme
+- Sınav başarı analizi ve dönem değerlendirme raporları, Excel dışa aktarma
+- Yönetim paneli: kullanıcı ve ders ataması, şifre sıfırlama talepleri, notlandırma ve optik form ayarları
 
 ## Teknoloji yığını
 
