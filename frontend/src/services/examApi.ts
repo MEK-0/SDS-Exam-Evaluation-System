@@ -56,3 +56,9 @@ export async function acceptAbsentSuggestions(examId: string): Promise<MatchingR
   if (!response.data.data) throw new Error(response.data.message ?? 'Girmedi önerileri onaylanamadı.');
   return response.data.data;
 }
+
+export async function applyReverseBookletMapping(examId: string, bookletCode: string): Promise<LearningOutcomePage> {
+  const response = await apiClient.post<ApiResponse<LearningOutcomePage>>(`/exams/${examId}/question-mappings/reverse`, { bookletCode });
+  if (!response.data.data) throw new Error(response.data.message ?? 'Ters sıra eşleştirmesi uygulanamadı.');
+  return response.data.data;
+}

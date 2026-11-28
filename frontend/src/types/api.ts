@@ -23,12 +23,27 @@ export interface ImportPreview { importId: string; opticalFileName: string; clas
 export type AnswerKeyStatus = 'Draft' | 'Validated';
 export type ExamQuestionStatus = 'Active' | 'Cancelled';
 export type CancelledQuestionPolicy = 'ExcludeFromTotal' | 'RedistributeToActiveQuestions';
-export interface AnswerKeyQuestion { id: string; canonicalQuestionNumber: number; points: number; status: ExamQuestionStatus; }
-export interface BookletQuestion { id: string; examQuestionId: string; examQuestionNumber: number; displayQuestionNumber: number; acceptedAnswers: string[]; }
+export type QuestionScoreSource = 'Optical' | 'Manual';
+export type QuestionCancellationPolicy = 'AwardFullPoints' | 'DeductAndScale';
+export type CancellationSuggestionStatus = 'Pending' | 'Approved' | 'Rejected';
+export interface AnswerKeyQuestion { id: string; canonicalQuestionNumber: number; points: number; status: ExamQuestionStatus; source: QuestionScoreSource; }
+export interface CancellationSuggestion {
+  id: string;
+  sourceBookletCode: string;
+  sourceQuestionNumber: number;
+  targetBookletCode: string;
+  targetQuestionNumber: number;
+  policy: QuestionCancellationPolicy;
+  status: CancellationSuggestionStatus;
+  createdAt: string;
+  decidedAt: string | null;
+}
+export interface CancellationSuggestionsResponse { items: CancellationSuggestion[]; pendingCount: number; }
+export interface BookletQuestion { id: string; examQuestionId: string; examQuestionNumber: number; displayQuestionNumber: number; acceptedAnswers: string[]; points: number; status: ExamQuestionStatus; cancellationPolicy: QuestionCancellationPolicy; }
 export interface AnswerKeyBooklet { id: string; bookletCode: string; questionCount: number; questions: BookletQuestion[]; }
-export interface AnswerKey { id: string; examId: string; maximumScore: number; questionCount: number; dynamicScoring: boolean; allowMultipleAnswers: boolean; cancelledQuestionPolicy: CancelledQuestionPolicy; status: AnswerKeyStatus; updatedAt: string; isComplete: boolean; questions: AnswerKeyQuestion[]; booklets: AnswerKeyBooklet[]; validationIssues: string[]; }
-export interface AnswerKeyQuestionInput { canonicalQuestionNumber: number; points: number; status: ExamQuestionStatus; }
-export interface BookletQuestionInput { examQuestionNumber: number; displayQuestionNumber: number; acceptedAnswers: string[]; }
+export interface AnswerKey { id: string; examId: string; maximumScore: number; questionCount: number; dynamicScoring: boolean; allowMultipleAnswers: boolean; cancelledQuestionPolicy: CancelledQuestionPolicy; status: AnswerKeyStatus; updatedAt: string; isComplete: boolean; questions: AnswerKeyQuestion[]; booklets: AnswerKeyBooklet[]; validationIssues: string[]; cancellationSuggestions: CancellationSuggestion[]; pendingCancellationSuggestionCount: number; }
+export interface AnswerKeyQuestionInput { canonicalQuestionNumber: number; points: number; status: ExamQuestionStatus; source?: QuestionScoreSource; }
+export interface BookletQuestionInput { examQuestionNumber: number; displayQuestionNumber: number; acceptedAnswers: string[]; status?: ExamQuestionStatus; cancellationPolicy?: QuestionCancellationPolicy; }
 export interface AnswerKeyBookletInput { bookletCode: string; questions: BookletQuestionInput[]; }
 export interface UpdateAnswerKeyInput { maximumScore: number; questionCount: number; dynamicScoring: boolean; allowMultipleAnswers: boolean; cancelledQuestionPolicy: CancelledQuestionPolicy; questions: AnswerKeyQuestionInput[]; booklets: AnswerKeyBookletInput[]; }
 export interface OpticalRecord { id: string; lineNumber: number; studentNumber: string; studentName: string; bookletType: string; answers: string; isValid: boolean; errorMessage: string | null; isAnswerKey: boolean; }
@@ -49,9 +64,9 @@ export interface MatchSuggestion {
 }
 export interface MatchingResponse { summary: MatchingSummary; records: MatchingRecord[]; updatedAt: string | null; suggestions: MatchSuggestion[]; }
 export type GradeStatus = 'Graded' | 'Absent' | 'NotEntered';
-export interface GradeRow { resultId: string; importedStudentId: string; studentNumber: string; studentName: string; rawScore: number | null; adjustedScore: number | null; adjustmentAmount: number; projectScore: number | null; status: GradeStatus; updatedAt: string; letterGrade: string | null; }
+export interface GradeRow { resultId: string; importedStudentId: string; studentNumber: string; studentName: string; rawScore: number | null; adjustedScore: number | null; adjustmentAmount: number; projectScore: number | null; status: GradeStatus; updatedAt: string; letterGrade: string | null; scaledScore: number | null; isManuallyAdjusted: boolean; }
 export interface GradeSummary { totalStudentCount: number; gradedStudentCount: number; absentStudentCount: number; averageScore: number | null; medianScore: number | null; standardDeviation: number | null; highestScore: number | null; lowestScore: number | null; }
-export interface GradesResponse { rows: GradeRow[]; summary: GradeSummary; calculatedAt: string | null; }
+export interface GradesResponse { rows: GradeRow[]; summary: GradeSummary; calculatedAt: string | null; pendingCancellationSuggestionCount: number; maximumScore: number; manuallyAdjustedStudentIds: string[] | null; }
 export interface OpenEndedGradeImportResponse { grades: GradesResponse; importedCount: number; issues: string[]; }
 export interface ProjectGradeImportResponse { grades: GradesResponse; importedCount: number; issues: string[]; }
 export interface LearningOutcome { id: string; courseId: string; description: string; displayOrder: number; updatedAt: string; }
