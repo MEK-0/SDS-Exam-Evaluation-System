@@ -297,6 +297,48 @@ public sealed class OpticalTemplateServiceTests
     }
 
     [Fact]
+    public async Task KK4_Y6_10_BindTemplateRejectedWhenExamHasImport()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        setup.Context.ExamImports.Add(new ExamImport { Id = Guid.NewGuid(), ExamId = setup.ExistingExamId, OpticalFileName = "optik.txt", ClassListFileName = "liste.xlsx", CreatedAt = DateTime.UtcNow });
+        await setup.Context.SaveChangesAsync();
+        setup.Context.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(setup.ExistingExamId, sample.Id, default));
+        var examRow = await setup.Context.Exams.AsNoTracking().SingleAsync(item => item.Id == setup.ExistingExamId);
+        Assert.Equal(setup.ExistingExamVersionId, examRow.OpticalTemplateVersionId);
+    }
+
+    [Fact]
+    public async Task KK4_Y6_10_BindTemplateRejectedWhenExamCompleted()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        var exam = await setup.Context.Exams.SingleAsync(item => item.Id == setup.ExistingExamId);
+        exam.Status = ExamStatus.Completed;
+        await setup.Context.SaveChangesAsync();
+        setup.Context.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(setup.ExistingExamId, sample.Id, default));
+        var examRow = await setup.Context.Exams.AsNoTracking().SingleAsync(item => item.Id == setup.ExistingExamId);
+        Assert.Equal(setup.ExistingExamVersionId, examRow.OpticalTemplateVersionId);
+    }
+
+    [Fact]
+    public async Task KK4_K11_BindTemplateAllowedBeforeImport()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        Assert.False(await setup.Context.ExamImports.AnyAsync(item => item.ExamId == setup.ExistingExamId));
+        var bound = await setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(setup.ExistingExamId, sample.Id, default);
+        Assert.NotNull(bound);
+        var examRow = await setup.Context.Exams.AsNoTracking().SingleAsync(item => item.Id == setup.ExistingExamId);
+        Assert.Equal(sample.CurrentVersion.Id, examRow.OpticalTemplateVersionId);
+    }
+
+    [Fact]
     public async Task KK4_K11_AdminOpticalSettingsReadsDefaultTemplateCurrentVersion()
     {
         await using var setup = await CreateSetupAsync(seed: true);

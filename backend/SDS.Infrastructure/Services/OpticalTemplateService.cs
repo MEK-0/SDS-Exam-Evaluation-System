@@ -91,6 +91,17 @@ public sealed class OpticalTemplateService(SdsDbContext dbContext, ICurrentUser 
     {
         var exam = await dbContext.Exams.SingleOrDefaultAsync(item => item.Id == examId, cancellationToken);
         if (exam is null || !await CanAccessCourseAsync(exam.CourseId, cancellationToken)) return null;
+        if (exam.Status == ExamStatus.Completed)
+        {
+            throw new InvalidOperationException("Tamamlanmış sınavın optik form şablonu değiştirilemez.");
+        }
+
+        var hasImport = await dbContext.ExamImports.AnyAsync(item => item.ExamId == examId, cancellationToken);
+        if (hasImport)
+        {
+            throw new InvalidOperationException("Dosyaları yüklenmiş sınavın optik form şablonu değiştirilemez. Önce yüklenen dosyaları kaldırın.");
+        }
+
         var version = await dbContext.OpticalTemplateVersions
             .AsNoTracking()
             .Include(item => item.OpticalTemplate)
