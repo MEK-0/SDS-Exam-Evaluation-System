@@ -55,6 +55,13 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("CancellationPolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("AwardFullPoints");
+
                     b.Property<int>("DisplayQuestionNumber")
                         .HasColumnType("integer");
 
@@ -63,6 +70,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ExamQuestionId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Points")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Active");
 
                     b.HasKey("Id");
 
@@ -107,7 +125,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.HasIndex("ExamId", "BookletId", "BookletQuestionNumber")
                         .IsUnique();
 
-                    b.HasIndex("ExamId", "ReferenceBookletId", "ReferenceQuestionNumber")
+                    b.HasIndex("ExamId", "ReferenceBookletId", "BookletId", "ReferenceQuestionNumber")
                         .IsUnique();
 
                     b.ToTable("BookletQuestionMappings");
@@ -332,6 +350,13 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasPrecision(8, 4)
                         .HasColumnType("numeric(8,4)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Optical");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -364,7 +389,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ImportedStudentId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("ManualScore")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<decimal?>("RawScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<decimal?>("ScaledScore")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)");
 
@@ -804,6 +839,58 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectGradeImports");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionCancellationSuggestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Policy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("SourceBookletCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("SourceQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TargetBookletCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("TargetQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExamId", "SourceBookletCode", "SourceQuestionNumber", "TargetBookletCode", "TargetQuestionNumber")
+                        .IsUnique();
+
+                    b.ToTable("QuestionCancellationSuggestions");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
@@ -1257,6 +1344,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("Exam");
 
                     b.Navigation("ImportedStudent");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionCancellationSuggestion", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
