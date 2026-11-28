@@ -1,6 +1,6 @@
 /* Sınav taslaklarını TanStack Query ile sunar. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addBonus, calculateGrades, completeExam, confirmMatching, createExam, createLearningOutcome, createManualMatch, downloadAnalysisExcel, downloadTermAnalysisExcel, getAnalysis, getAnswerKey, getExam, getExams, getGrades, getImportPreview, getLearningOutcomePage, getLearningOutcomes, getMatching, getOpticalRecords, getTermAnalysis, ignoreOpticalRecord, importOpenEndedGrades, importProjectGrades, markStudentAbsent, removeImportFile, removeManualMatch, runMatching, saveBookletMappings, saveOpenEndedGrade, saveOpenEndedSettings, saveOutcomeMappings, updateAnswerKey, updateGrade, uploadExamFiles, uploadOpenEndedClassList, getOpenEndedSettings } from '../services/examApi';
+import { acceptAbsentSuggestions, acceptSuggestion, addBonus, calculateGrades, completeExam, confirmMatching, createExam, createLearningOutcome, createManualMatch, downloadAnalysisExcel, downloadTermAnalysisExcel, getAnalysis, getAnswerKey, getExam, getExams, getGrades, getImportPreview, getLearningOutcomePage, getLearningOutcomes, getMatching, getOpticalRecords, getTermAnalysis, ignoreOpticalRecord, importOpenEndedGrades, importProjectGrades, markStudentAbsent, removeImportFile, removeManualMatch, runMatching, saveBookletMappings, saveOpenEndedGrade, saveOpenEndedSettings, saveOutcomeMappings, updateAnswerKey, updateGrade, uploadExamFiles, uploadOpenEndedClassList, getOpenEndedSettings } from '../services/examApi';
 import type { EvaluationType, ExamType, LearningOutcomePage, UpdateAnswerKeyInput } from '../types/api';
 
 export function useExams(courseId: string) { return useQuery({ queryKey: ['courses', courseId, 'exams'], queryFn: () => getExams(courseId), enabled: Boolean(courseId), retry: false }); }
@@ -41,4 +41,26 @@ export function useImportOpenEndedGrades(examId: string) { const queryClient = u
 
 export function useExam(examId: string) {
   return useQuery({ queryKey: ['exams', examId, 'detail'], queryFn: () => getExam(examId), enabled: Boolean(examId), retry: false });
+}
+
+export function useAcceptSuggestion(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { importedStudentId: string; opticalExamRecordId: string }) => acceptSuggestion(examId, input.importedStudentId, input.opticalExamRecordId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['exams', examId, 'matching'], data);
+      void queryClient.invalidateQueries({ queryKey: ['exams', examId, 'matching'] });
+    },
+  });
+}
+
+export function useAcceptAbsentSuggestions(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => acceptAbsentSuggestions(examId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['exams', examId, 'matching'], data);
+      void queryClient.invalidateQueries({ queryKey: ['exams', examId, 'matching'] });
+    },
+  });
 }

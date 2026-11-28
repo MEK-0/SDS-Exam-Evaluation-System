@@ -71,6 +71,7 @@ function savedPreview(): ImportPreview {
     opticalRecords: [],
     students: [],
     issues: [],
+    warnings: [],
     createdAt: '2026-01-01T00:00:00Z',
   };
 }
@@ -202,5 +203,24 @@ describe('NewExamPage optik şablon seçimi', () => {
     getOpticalTemplates.mockResolvedValue([]);
     renderPage();
     expect(await screen.findByText('Tanımlı optik form şablonu yok')).toBeInTheDocument();
+  });
+});
+
+describe('NewExamPage import uyarıları', () => {
+  it('KK4_K4_ExamTypeWarningIsShownAndDoesNotBlockNext', async () => {
+    getImportPreview.mockResolvedValue({
+      ...savedPreview(),
+      warnings: [{ source: 'examType', rowNumber: null, message: 'Optik dosyadaki sınav türü seçilen sınavla uyuşmuyor.' }],
+    });
+    renderPage();
+    expect(await screen.findByText('Optik dosyadaki sınav türü seçilen sınavla uyuşmuyor.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'İleri' })).toBeEnabled();
+  });
+
+  it('KK4_K4_TemplatePickerLockedWhenOpticalFileLoaded', async () => {
+    getImportPreview.mockResolvedValue(savedPreview());
+    renderPage();
+    const select = await picker();
+    await waitFor(() => expect(select).toBeDisabled());
   });
 });

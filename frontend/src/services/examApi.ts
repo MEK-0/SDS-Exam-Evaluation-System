@@ -44,3 +44,15 @@ export async function getExam(examId: string): Promise<Exam> {
   if (!response.data.data) throw new Error(response.data.message ?? 'Sınav bilgisi alınamadı.');
   return response.data.data;
 }
+
+export async function acceptSuggestion(examId: string, importedStudentId: string, opticalExamRecordId: string): Promise<MatchingResponse> {
+  const response = await apiClient.put<ApiResponse<MatchingResponse>>(`/exams/${examId}/matching/suggestions/accept`, { importedStudentId, opticalExamRecordId });
+  if (!response.data.data) throw new Error(response.data.message ?? 'Öneri onaylanamadı.');
+  return response.data.data;
+}
+
+export async function acceptAbsentSuggestions(examId: string): Promise<MatchingResponse> {
+  const response = await apiClient.put<ApiResponse<MatchingResponse>>(`/exams/${examId}/matching/suggestions/accept-absent`);
+  if (!response.data.data) throw new Error(response.data.message ?? 'Girmedi önerileri onaylanamadı.');
+  return response.data.data;
+}

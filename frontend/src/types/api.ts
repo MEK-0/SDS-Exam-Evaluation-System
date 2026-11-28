@@ -16,10 +16,10 @@ export interface AcademicYear { id: string; name: string; isActive: boolean; }
 export type ExamType = 'Midterm' | 'Final' | 'MakeUp';
 export type EvaluationType = 'MultipleChoice' | 'OpenEnded';
 export interface Exam { id: string; courseId: string; examType: ExamType; evaluationType: EvaluationType; status: 'Draft' | 'Completed'; createdAt: string; opticalTemplateId: string; opticalTemplateName: string; opticalTemplateVersionId: string; opticalTemplateVersionNo: number; }
-export interface OpticalRecordPreview { lineNumber: number; studentNumber: string; studentName: string; bookletType: string; answers: string; isValid: boolean; errorMessage: string | null; isAnswerKey: boolean; }
+export interface OpticalRecordPreview { lineNumber: number; studentNumber: string; studentName: string; bookletType: string; answers: string; isValid: boolean; errorMessage: string | null; isAnswerKey: boolean; examTypeValue: string; }
 export interface StudentPreview { rowNumber: number; studentNumber: string; firstName: string; lastName: string; sourceFileName: string; }
 export interface ImportIssue { source: string; rowNumber: number | null; message: string; }
-export interface ImportPreview { importId: string; opticalFileName: string; classListFileName: string; classListFileNames: string[]; totalOpticalRecordCount: number; validOpticalRecordCount: number; invalidOpticalRecordCount: number; studentCount: number; opticalRecords: OpticalRecordPreview[]; students: StudentPreview[]; issues: ImportIssue[]; createdAt: string; }
+export interface ImportPreview { importId: string; opticalFileName: string; classListFileName: string; classListFileNames: string[]; totalOpticalRecordCount: number; validOpticalRecordCount: number; invalidOpticalRecordCount: number; studentCount: number; opticalRecords: OpticalRecordPreview[]; students: StudentPreview[]; issues: ImportIssue[]; warnings: ImportIssue[]; createdAt: string; }
 export type AnswerKeyStatus = 'Draft' | 'Validated';
 export type ExamQuestionStatus = 'Active' | 'Cancelled';
 export type CancelledQuestionPolicy = 'ExcludeFromTotal' | 'RedistributeToActiveQuestions';
@@ -34,9 +34,20 @@ export interface UpdateAnswerKeyInput { maximumScore: number; questionCount: num
 export interface OpticalRecord { id: string; lineNumber: number; studentNumber: string; studentName: string; bookletType: string; answers: string; isValid: boolean; errorMessage: string | null; isAnswerKey: boolean; }
 export type StudentMatchType = 'Exact' | 'Normalized' | 'Manual';
 export type StudentMatchStatus = 'Matched' | 'Unmatched' | 'Conflict' | 'Absent';
-export interface MatchingSummary { totalClassListCount: number; totalOpticalRecordCount: number; exactMatchCount: number; normalizedMatchCount: number; manualMatchCount: number; unmatchedStudentCount: number; unmatchedOpticalRecordCount: number; conflictCount: number; isCalculated: boolean; isConfirmed: boolean; canConfirm: boolean; }
-export interface MatchingRecord { matchId: string | null; importedStudentId: string | null; opticalExamRecordId: string | null; studentNumber: string; studentName: string; opticalStudentNumber: string; opticalStudentName: string; bookletType: string; matchType: StudentMatchType; status: StudentMatchStatus; isAbsent: boolean; issue: string | null; }
-export interface MatchingResponse { summary: MatchingSummary; records: MatchingRecord[]; updatedAt: string | null; }
+export interface MatchingSummary { totalClassListCount: number; totalOpticalRecordCount: number; exactMatchCount: number; normalizedMatchCount: number; manualMatchCount: number; unmatchedStudentCount: number; unmatchedOpticalRecordCount: number; conflictCount: number; isCalculated: boolean; isConfirmed: boolean; canConfirm: boolean; suggestedMatchCount: number; absentSuggestionCount: number; invalidOpticalCount: number; }
+export interface MatchingRecord { matchId: string | null; importedStudentId: string | null; opticalExamRecordId: string | null; studentNumber: string; studentName: string; opticalStudentNumber: string; opticalStudentName: string; bookletType: string; matchType: StudentMatchType; status: StudentMatchStatus; isAbsent: boolean; issue: string | null; isInvalidOptical: boolean; }
+export type MatchSuggestionKind = 'SimilarNumber' | 'Absent';
+export interface MatchSuggestion {
+  kind: MatchSuggestionKind;
+  importedStudentId: string;
+  opticalExamRecordId: string | null;
+  studentNumber: string;
+  studentName: string;
+  opticalStudentNumber: string;
+  opticalStudentName: string;
+  reason: string;
+}
+export interface MatchingResponse { summary: MatchingSummary; records: MatchingRecord[]; updatedAt: string | null; suggestions: MatchSuggestion[]; }
 export type GradeStatus = 'Graded' | 'Absent' | 'NotEntered';
 export interface GradeRow { resultId: string; importedStudentId: string; studentNumber: string; studentName: string; rawScore: number | null; adjustedScore: number | null; adjustmentAmount: number; projectScore: number | null; status: GradeStatus; updatedAt: string; letterGrade: string | null; }
 export interface GradeSummary { totalStudentCount: number; gradedStudentCount: number; absentStudentCount: number; averageScore: number | null; medianScore: number | null; standardDeviation: number | null; highestScore: number | null; lowestScore: number | null; }
