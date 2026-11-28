@@ -610,6 +610,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ExamImportId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ExamTypeValue")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<bool>("IsAnswerKey")
                         .HasColumnType("boolean");
 
@@ -837,7 +842,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ExamId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ImportedStudentId")
+                    b.Property<Guid?>("ImportedStudentId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsAbsent")
@@ -1292,8 +1297,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.HasOne("SDS.Domain.Entities.ImportedStudent", "ImportedStudent")
                         .WithMany()
                         .HasForeignKey("ImportedStudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("SDS.Domain.Entities.User", "MatchedByUser")
                         .WithMany()
