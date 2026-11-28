@@ -37,7 +37,8 @@ public sealed class OpticalFileParser : IOpticalFileParser
             var answers = Slice(line, configuration.AnswersStart, configuration.AnswersLength);
             if (string.IsNullOrWhiteSpace(studentNumber)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Öğrenci numarası boş.");
             if (string.IsNullOrWhiteSpace(bookletType)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Kitapçık türü boş.");
-            return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, true, null);
+            var isAnswerKey = studentNumber.All(character => character == '0');
+            return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, true, null, isAnswerKey);
         }
         catch (FormatException exception)
         {

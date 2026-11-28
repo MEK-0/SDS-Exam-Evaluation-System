@@ -7,11 +7,13 @@ using SDS.Infrastructure.Persistence;
 
 namespace SDS.Infrastructure.Seeding;
 
-public sealed class DevelopmentSeeder(SdsDbContext dbContext, IConfiguration configuration)
+public sealed class DevelopmentSeeder(SdsDbContext dbContext, IConfiguration configuration, OpticalTemplateSeeder opticalTemplateSeeder)
 {
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await opticalTemplateSeeder.SeedAsync(cancellationToken);
+        var developmentVersionId = await GetOrCreateDevelopmentTemplateVersionAsync(cancellationToken);
         var hasher = new PasswordHasher<User>();
         var resetPasswords = bool.TryParse(configuration["Seed:ResetPasswords"], out var shouldResetPasswords) && shouldResetPasswords;
         var admin = await GetOrCreateUserAsync(hasher, "admin@sds.local", "admin", "SDS", "Yönetici", "10000001", UserRole.Admin, GetRequiredPassword("Seed:AdminPassword"), resetPasswords, cancellationToken);
@@ -23,9 +25,8 @@ public sealed class DevelopmentSeeder(SdsDbContext dbContext, IConfiguration con
         if (dbContext.Entry(year).State == EntityState.Detached) dbContext.AcademicYears.Add(year);
         if (!await dbContext.CourseInstructors.AnyAsync(item => item.CourseId == firstCourse.Id && item.UserId == instructor.Id, cancellationToken)) dbContext.CourseInstructors.Add(new CourseInstructor { CourseId = firstCourse.Id, UserId = instructor.Id });
         if (!await dbContext.CourseInstructors.AnyAsync(item => item.CourseId == secondCourse.Id && item.UserId == adminInstructor.Id, cancellationToken)) dbContext.CourseInstructors.Add(new CourseInstructor { CourseId = secondCourse.Id, UserId = adminInstructor.Id });
-        if (!await dbContext.Exams.AnyAsync(item => item.CourseId == firstCourse.Id && item.ExamType == ExamType.Midterm, cancellationToken)) dbContext.Exams.Add(new Exam { Id = Guid.NewGuid(), CourseId = firstCourse.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, Status = ExamStatus.Draft, CreatedAt = DateTime.UtcNow });
+        if (!await dbContext.Exams.AnyAsync(item => item.CourseId == firstCourse.Id && item.ExamType == ExamType.Midterm, cancellationToken)) dbContext.Exams.Add(new Exam { Id = Guid.NewGuid(), OpticalTemplateVersionId = developmentVersionId, CourseId = firstCourse.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, Status = ExamStatus.Draft, CreatedAt = DateTime.UtcNow });
         if (!await dbContext.GradingPolicies.AnyAsync(cancellationToken)) dbContext.GradingPolicies.Add(new GradingPolicy { Id = Guid.NewGuid(), AaMinimum = 90, BaMinimum = 85, BbMinimum = 80, CbMinimum = 70, CcMinimum = 60, DcMinimum = 50, MidtermWeight = 40, FinalWeight = 60, MakeUpWeight = 60, UpdatedAt = DateTime.UtcNow });
-        if (!await dbContext.OpticalSystemSettings.AnyAsync(cancellationToken)) dbContext.OpticalSystemSettings.Add(new OpticalSystemSettings { Id = Guid.NewGuid(), StudentNumberStart = 0, StudentNumberLength = 9, BookletTypeStart = 9, BookletTypeLength = 1, AnswersStart = 10, AnswersLength = 25, EncodingName = "utf-8", UpdatedAt = DateTime.UtcNow });
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -50,6 +51,36 @@ public sealed class DevelopmentSeeder(SdsDbContext dbContext, IConfiguration con
     }
 
     private string GetRequiredPassword(string key) => configuration[key] ?? throw new InvalidOperationException($"{key} yapılandırması bulunamadı.");
+
+    private async Task<Guid> GetOrCreateDevelopmentTemplateVersionAsync(CancellationToken cancellationToken)
+    {
+        const string name = "SDS sentetik (geliştirme)";
+        var existing = await dbContext.OpticalTemplates
+            .Where(item => item.Name == name)
+            .SelectMany(item => item.Versions)
+            .OrderByDescending(item => item.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existing is not null) return existing.Id;
+        var template = new OpticalTemplate { Id = Guid.NewGuid(), Name = name, IsDefault = false, CreatedAt = DateTime.UtcNow };
+        var version = new OpticalTemplateVersion
+        {
+            Id = Guid.NewGuid(),
+            OpticalTemplateId = template.Id,
+            VersionNo = 1,
+            StudentNumberStart = 0,
+            StudentNumberLength = 9,
+            BookletTypeStart = 9,
+            BookletTypeLength = 1,
+            AnswersStart = 10,
+            AnswersLength = 25,
+            EncodingMode = OpticalEncodingMode.Utf8,
+            CreatedAt = DateTime.UtcNow
+        };
+        dbContext.OpticalTemplates.Add(template);
+        dbContext.OpticalTemplateVersions.Add(version);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return version.Id;
+    }
 
     private static Course CreateCourse(string code, string name, Guid academicYearId) => new() { Id = Guid.NewGuid(), Code = code, Name = name, AcademicYearId = academicYearId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 

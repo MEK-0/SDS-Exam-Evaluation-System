@@ -67,8 +67,7 @@ public sealed class ExamsController(IExamService examService, IStudentDataImport
         await using var opticalStream = request.OpticalFile!.OpenReadStream();
         var classListInputs = classListFiles.Select(file => new ClassListFileInput(file.OpenReadStream(), file.FileName)).ToList();
         await using var _ = new CompositeAsyncDisposable(classListInputs.Select(item => item.Content));
-        var configuration = new OpticalFormConfigurationInput(request.StudentNumberStart, request.StudentNumberLength, request.StudentNameStart, request.StudentNameLength, request.BookletTypeStart, request.BookletTypeLength, request.ExamTypeStart, request.ExamTypeLength, request.AnswersStart, request.AnswersLength, request.EncodingName);
-        var response = await importService.ImportAsync(examId, opticalStream, request.OpticalFile.FileName, classListInputs, configuration, cancellationToken);
+        var response = await importService.ImportAsync(examId, opticalStream, request.OpticalFile.FileName, classListInputs, cancellationToken);
         return Ok(ApiResponse<ImportPreviewResponse>.Ok(response, "Dosyalar işlendi."));
     }
 

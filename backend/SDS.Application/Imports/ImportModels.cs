@@ -37,7 +37,7 @@ public interface IClassListParser
 
 public interface IStudentDataImportService
 {
-    Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, OpticalFormConfigurationInput configuration, CancellationToken cancellationToken);
+    Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, CancellationToken cancellationToken);
     Task<ImportPreviewResponse> ImportClassListAsync(Guid examId, IReadOnlyCollection<ClassListFileInput> classListFiles, CancellationToken cancellationToken);
     Task<bool?> RemoveAsync(Guid examId, string fileType, string? fileName, CancellationToken cancellationToken);
     Task<ImportPreviewResponse?> GetPreviewAsync(Guid examId, CancellationToken cancellationToken);

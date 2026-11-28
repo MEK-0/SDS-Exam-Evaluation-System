@@ -52,6 +52,11 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<DevelopmentSeeder>().SeedAsync(default);
 }
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync(default);
+}
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors("Frontend");
 app.UseAuthentication();
