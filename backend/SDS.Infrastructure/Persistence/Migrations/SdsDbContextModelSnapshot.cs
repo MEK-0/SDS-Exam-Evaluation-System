@@ -192,7 +192,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("MatchingUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("OpticalTemplateVersionId")
+                    b.Property<Guid>("OpticalTemplateVersionId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Status")
@@ -636,110 +636,6 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("OpticalExamRecords");
                 });
 
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalFormConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AnswersLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("AnswersStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncodingName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("ExamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ExamTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ExamTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberStart")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExamId")
-                        .IsUnique();
-
-                    b.ToTable("OpticalFormConfigurations");
-                });
-
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalSystemSettings", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AnswersLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("AnswersStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncodingName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int?>("ExamTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ExamTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberStart")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("UpdatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OpticalSystemSettings");
-                });
-
             modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1176,7 +1072,8 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.HasOne("SDS.Domain.Entities.OpticalTemplateVersion", "OpticalTemplateVersion")
                         .WithMany()
                         .HasForeignKey("OpticalTemplateVersionId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Course");
 
@@ -1307,17 +1204,6 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ExamImport");
-                });
-
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalFormConfiguration", b =>
-                {
-                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
-                        .WithOne("OpticalFormConfiguration")
-                        .HasForeignKey("SDS.Domain.Entities.OpticalFormConfiguration", "ExamId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Exam");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplateVersion", b =>
@@ -1474,8 +1360,6 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("BookletQuestionMappings");
 
                     b.Navigation("Imports");
-
-                    b.Navigation("OpticalFormConfiguration");
 
                     b.Navigation("QuestionLearningOutcomes");
                 });
