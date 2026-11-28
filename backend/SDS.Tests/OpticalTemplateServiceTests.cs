@@ -105,7 +105,10 @@ public sealed class OpticalTemplateServiceTests
         Assert.Equal("A", oldResult.OpticalRecords.Single().BookletType);
         Assert.Equal("ABCD", oldResult.OpticalRecords.Single().Answers);
         var newResult = await ImportShortLineAsync(import, newExam!.Id);
-        Assert.Equal(0, newResult.ValidOpticalRecordCount);
+        var newRecord = newResult.OpticalRecords.Single();
+        Assert.Equal("00123456A", newRecord.StudentNumber);
+        Assert.NotEqual(oldResult.OpticalRecords.Single().StudentNumber, newRecord.StudentNumber);
+        Assert.NotEqual(oldResult.OpticalRecords.Single().Answers, newRecord.Answers);
     }
 
     [Fact]
@@ -415,6 +418,85 @@ public sealed class OpticalTemplateServiceTests
         await using var optical = new MemoryStream(Encoding.UTF8.GetBytes("00123456AABCD\n"));
         await using var classList = File.OpenRead(FixturePath("sinif-listesi-ornek-anonim.xlsx"));
         return await service.ImportAsync(examId, optical, "optik.txt", [new ClassListFileInput(classList, "sinif.xlsx")], default);
+    }
+
+    [Fact]
+    public async Task KK4_K12_ExamTypeMismatchWarnsButImports()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var sample = (await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default)).Single(item => item.Name == SampleLayoutName);
+        var midterm = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, NewExam(sample.Id), default);
+        var matching = await ImportFixtureAsync(setup.ImportService(setup.InstructorId), midterm!.Id);
+        Assert.Empty(matching.Warnings);
+        var finalExam = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, new CreateExamRequest { ExamType = ExamType.Final, EvaluationType = EvaluationType.MultipleChoice, OpticalTemplateId = sample.Id }, default);
+        var mismatched = await ImportFixtureAsync(setup.ImportService(setup.InstructorId), finalExam!.Id);
+        var warning = Assert.Single(mismatched.Warnings);
+        Assert.Contains("15 optik satırında", warning.Message);
+        Assert.Equal(17, mismatched.ValidOpticalRecordCount);
+        Assert.DoesNotContain(mismatched.Issues, item => item.Source == "examType");
+        Assert.Equal(17, await setup.Context.OpticalExamRecords.CountAsync(item => item.ExamImport.ExamId == finalExam.Id));
+        Assert.Equal(15, await setup.Context.OpticalExamRecords.CountAsync(item => item.ExamImport.ExamId == finalExam.Id && item.ExamTypeValue == "1"));
+    }
+
+    [Fact]
+    public async Task KK4_K11_BindTemplateAllowedBeforeImport()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var exam = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, NewExam(templates.Single(item => item.Name == StandardName).Id), default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        var bound = await setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(exam!.Id, sample.Id, default);
+        Assert.Equal(sample.CurrentVersion.Id, bound!.OpticalTemplateVersionId);
+    }
+
+    [Fact]
+    public async Task KK4_Y6_10_BindTemplateRejectedWhenOpticalRecordsStored()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        var standard = templates.Single(item => item.Name == StandardName);
+        var exam = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, NewExam(sample.Id), default);
+        await ImportFixtureAsync(setup.ImportService(setup.InstructorId), exam!.Id);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(exam.Id, standard.Id, default));
+        Assert.Contains("optik dosya", error.Message);
+        var stored = await setup.Context.Exams.AsNoTracking().SingleAsync(item => item.Id == exam.Id);
+        Assert.Equal(sample.CurrentVersion.Id, stored.OpticalTemplateVersionId);
+    }
+
+    [Fact]
+    public async Task KK4_Y6_10_BindTemplateRejectedWhenExamCompleted()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        var standard = templates.Single(item => item.Name == StandardName);
+        var exam = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, NewExam(standard.Id), default);
+        var tracked = await setup.Context.Exams.SingleAsync(item => item.Id == exam!.Id);
+        tracked.Status = ExamStatus.Completed;
+        await setup.Context.SaveChangesAsync();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(exam!.Id, sample.Id, default));
+        Assert.Contains("Tamamlanmış", error.Message);
+        var stored = await setup.Context.Exams.AsNoTracking().SingleAsync(item => item.Id == exam.Id);
+        Assert.Equal(standard.CurrentVersion.Id, stored.OpticalTemplateVersionId);
+    }
+
+    [Fact]
+    public async Task KK4_Y6_10_BindTemplateAllowedAfterOpticalFileRemoved()
+    {
+        await using var setup = await CreateSetupAsync(seed: true);
+        var templates = await setup.TemplateService(setup.AdminId, UserRole.Admin).GetAllAsync(default);
+        var sample = templates.Single(item => item.Name == SampleLayoutName);
+        var standard = templates.Single(item => item.Name == StandardName);
+        var exam = await setup.ExamService(setup.InstructorId).CreateExamAsync(setup.CourseId, NewExam(sample.Id), default);
+        var importService = setup.ImportService(setup.InstructorId);
+        await ImportFixtureAsync(importService, exam!.Id);
+        Assert.True(await importService.RemoveAsync(exam.Id, "optical", null, default));
+        var import = await setup.Context.ExamImports.AsNoTracking().SingleAsync(item => item.ExamId == exam.Id);
+        Assert.Equal(string.Empty, import.OpticalFileName);
+        Assert.NotEmpty(import.ClassListFileName);
+        var bound = await setup.TemplateService(setup.InstructorId, UserRole.Instructor).BindToExamAsync(exam.Id, standard.Id, default);
+        Assert.Equal(standard.CurrentVersion.Id, bound!.OpticalTemplateVersionId);
     }
 
     private static async Task<ImportPreviewResponse> ImportFixtureAsync(StudentDataImportService service, Guid examId)

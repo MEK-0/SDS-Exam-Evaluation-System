@@ -32,6 +32,11 @@ public static class OpticalEncodingNames
 
     public static string ToParserEncodingName(OpticalEncodingMode mode)
     {
-        return mode == OpticalEncodingMode.Windows1254 ? Windows1254 : Utf8;
+        return mode switch
+        {
+            OpticalEncodingMode.Windows1254 => Windows1254,
+            OpticalEncodingMode.Utf8 => Utf8,
+            _ => Auto
+        };
     }
 }

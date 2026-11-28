@@ -116,6 +116,7 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.ExamImportId, item.LineNumber }).IsUnique();
             entity.Property(item => item.IsAnswerKey).IsRequired();
+            entity.Property(item => item.ExamTypeValue).HasMaxLength(16).IsRequired();
             entity.Property(item => item.StudentNumber).HasMaxLength(64).IsRequired();
             entity.Property(item => item.BookletType).HasMaxLength(16).IsRequired();
             entity.Property(item => item.Answers).HasMaxLength(4096).IsRequired();

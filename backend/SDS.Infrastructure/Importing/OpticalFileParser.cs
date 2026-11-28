@@ -1,6 +1,7 @@
-// Sabit genişlikli optik TXT dosyalarını yapılandırılmış kayıtlara dönüştürür.
+// Sabit genişlikli optik TXT dosyalarını karakter bazlı okuyup yapılandırılmış kayıtlara dönüştürür.
 using System.Text;
 using SDS.Application.Imports;
+using SDS.Application.OpticalTemplates;
 
 namespace SDS.Infrastructure.Importing;
 
@@ -9,8 +10,8 @@ public sealed class OpticalFileParser : IOpticalFileParser
     public async Task<OpticalParseResult> ParseAsync(Stream content, OpticalFormConfigurationInput configuration, CancellationToken cancellationToken)
     {
         ValidateConfiguration(configuration);
-        var encoding = ResolveEncoding(configuration.EncodingName);
-        using var reader = new StreamReader(content, encoding, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        var text = await DecodeAsync(content, configuration.EncodingName, cancellationToken);
+        using var reader = new StringReader(text);
         var records = new List<ParsedOpticalRecord>();
         var issues = new List<ImportIssue>();
         var lineNumber = 0;
@@ -29,21 +30,22 @@ public sealed class OpticalFileParser : IOpticalFileParser
     {
         if (string.IsNullOrWhiteSpace(line)) return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, string.Empty, string.Empty, false, "Satır boş.");
         if (line.StartsWith("ANSWER_KEY_", StringComparison.OrdinalIgnoreCase)) return ParseAnswerKeyLine(line, lineNumber);
-        try
-        {
-            var studentNumber = Slice(line, configuration.StudentNumberStart, configuration.StudentNumberLength, "öğrenci numarası").Trim();
-            var studentName = configuration.StudentNameStart.HasValue && configuration.StudentNameLength.HasValue ? Slice(line, configuration.StudentNameStart.Value, configuration.StudentNameLength.Value, "öğrenci adı").Trim() : string.Empty;
-            var bookletType = Slice(line, configuration.BookletTypeStart, configuration.BookletTypeLength, "kitapçık türü").Trim();
-            var answers = Slice(line, configuration.AnswersStart, configuration.AnswersLength);
-            if (string.IsNullOrWhiteSpace(studentNumber)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Öğrenci numarası boş.");
-            if (string.IsNullOrWhiteSpace(bookletType)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Kitapçık türü boş.");
-            var isAnswerKey = studentNumber.All(character => character == '0');
-            return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, true, null, isAnswerKey);
-        }
-        catch (FormatException exception)
-        {
-            return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, string.Empty, string.Empty, false, exception.Message);
-        }
+        var padded = line.PadRight(GetRequiredLength(configuration), ' ');
+        var studentNumber = Slice(padded, configuration.StudentNumberStart, configuration.StudentNumberLength).Trim();
+        var studentName = configuration.StudentNameStart.HasValue && configuration.StudentNameLength.HasValue
+            ? Slice(padded, configuration.StudentNameStart.Value, configuration.StudentNameLength.Value).Trim()
+            : string.Empty;
+        var bookletType = Slice(padded, configuration.BookletTypeStart, configuration.BookletTypeLength).Trim();
+        var examType = configuration.ExamTypeStart.HasValue && configuration.ExamTypeLength.HasValue
+            ? Slice(padded, configuration.ExamTypeStart.Value, configuration.ExamTypeLength.Value).Trim()
+            : string.Empty;
+        var answers = Slice(padded, configuration.AnswersStart, configuration.AnswersLength);
+        var blankCount = CountMarks(answers, configuration.BlankMarkChar);
+        var doubleCount = CountMarks(answers, configuration.DoubleMarkChar);
+        if (string.IsNullOrWhiteSpace(studentNumber)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Öğrenci numarası boş.", false, examType, blankCount, doubleCount);
+        if (string.IsNullOrWhiteSpace(bookletType)) return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, false, "Kitapçık türü boş.", false, examType, blankCount, doubleCount);
+        var isAnswerKey = studentNumber.All(character => character == '0');
+        return new ParsedOpticalRecord(lineNumber, studentNumber, studentName, bookletType, answers, true, null, isAnswerKey, examType, blankCount, doubleCount);
     }
 
     private static ParsedOpticalRecord ParseAnswerKeyLine(string line, int lineNumber)
@@ -62,11 +64,22 @@ public sealed class OpticalFileParser : IOpticalFileParser
         return new ParsedOpticalRecord(lineNumber, string.Empty, string.Empty, bookletType, answers.ToUpperInvariant(), true, null, true);
     }
 
-    private static string Slice(string line, int start, int length, string fieldName = "alan")
+    private static int CountMarks(string answers, char mark) => answers.Count(character => character == mark);
+
+    private static int GetRequiredLength(OpticalFormConfigurationInput configuration)
     {
-        if (start < 0 || length <= 0 || start > line.Length || line.Length - start < length) throw new FormatException($"{fieldName} beklenen uzunlukta değil.");
-        return line.Substring(start, length);
+        var ends = new List<int>
+        {
+            configuration.StudentNumberStart + configuration.StudentNumberLength,
+            configuration.BookletTypeStart + configuration.BookletTypeLength,
+            configuration.AnswersStart + configuration.AnswersLength
+        };
+        if (configuration.StudentNameStart.HasValue && configuration.StudentNameLength.HasValue) ends.Add(configuration.StudentNameStart.Value + configuration.StudentNameLength.Value);
+        if (configuration.ExamTypeStart.HasValue && configuration.ExamTypeLength.HasValue) ends.Add(configuration.ExamTypeStart.Value + configuration.ExamTypeLength.Value);
+        return ends.Max();
     }
+
+    private static string Slice(string line, int start, int length) => line.Substring(start, length);
 
     private static void ValidateConfiguration(OpticalFormConfigurationInput configuration)
     {
@@ -74,9 +87,39 @@ public sealed class OpticalFileParser : IOpticalFileParser
         if (configuration.StudentNameStart.HasValue != configuration.StudentNameLength.HasValue || configuration.ExamTypeStart.HasValue != configuration.ExamTypeLength.HasValue) throw new ArgumentException("Opsiyonel optik alanların başlangıç ve uzunluk değerleri birlikte sağlanmalıdır.");
     }
 
-    private static Encoding ResolveEncoding(string encodingName)
+    private static async Task<string> DecodeAsync(Stream content, string encodingName, CancellationToken cancellationToken)
     {
-        try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); return Encoding.GetEncoding(string.IsNullOrWhiteSpace(encodingName) ? "utf-8" : encodingName); }
-        catch (ArgumentException exception) { throw new ArgumentException("Optik dosyası için desteklenmeyen karakter kodlaması.", exception); }
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+        var bytes = buffer.ToArray();
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var text = IsAutomatic(encodingName) ? DecodeAutomatically(bytes) : DecodeForced(bytes, encodingName);
+        return text.TrimStart('﻿');
+    }
+
+    private static bool IsAutomatic(string encodingName) => string.IsNullOrWhiteSpace(encodingName) || string.Equals(encodingName.Trim(), OpticalEncodingNames.Auto, StringComparison.OrdinalIgnoreCase);
+
+    private static string DecodeAutomatically(byte[] bytes)
+    {
+        try
+        {
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true).GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            return Encoding.GetEncoding(OpticalEncodingNames.Windows1254).GetString(bytes);
+        }
+    }
+
+    private static string DecodeForced(byte[] bytes, string encodingName)
+    {
+        try
+        {
+            return Encoding.GetEncoding(encodingName.Trim()).GetString(bytes);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new ArgumentException("Optik dosyası için desteklenmeyen karakter kodlaması.", exception);
+        }
     }
 }
