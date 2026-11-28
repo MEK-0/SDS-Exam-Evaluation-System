@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IClassListParser, ClassListParser>();
         services.AddScoped<IStudentDataImportService, StudentDataImportService>();
         services.AddScoped<IAnswerKeyService, AnswerKeyService>();
+        services.AddScoped<ICancellationSuggestionService, CancellationSuggestionService>();
         services.AddScoped<IStudentMatchingService, StudentMatchingService>();
         services.AddScoped<IGradeService, GradeService>();
         services.AddScoped<ILearningOutcomeService, LearningOutcomeService>();

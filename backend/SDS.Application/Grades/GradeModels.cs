@@ -3,9 +3,9 @@ using SDS.Domain.Entities;
 
 namespace SDS.Application.Grades;
 
-public sealed record GradeRowResponse(Guid ResultId, Guid ImportedStudentId, string StudentNumber, string StudentName, decimal? RawScore, decimal? AdjustedScore, decimal AdjustmentAmount, decimal? ProjectScore, GradeStatus Status, DateTime UpdatedAt, string? LetterGrade);
+public sealed record GradeRowResponse(Guid ResultId, Guid ImportedStudentId, string StudentNumber, string StudentName, decimal? RawScore, decimal? AdjustedScore, decimal AdjustmentAmount, decimal? ProjectScore, GradeStatus Status, DateTime UpdatedAt, string? LetterGrade, decimal? ScaledScore = null, bool IsManuallyAdjusted = false);
 public sealed record GradeSummaryResponse(int TotalStudentCount, int GradedStudentCount, int AbsentStudentCount, decimal? AverageScore, decimal? MedianScore, decimal? StandardDeviation, decimal? HighestScore, decimal? LowestScore);
-public sealed record GradesResponse(IReadOnlyCollection<GradeRowResponse> Rows, GradeSummaryResponse Summary, DateTime? CalculatedAt);
+public sealed record GradesResponse(IReadOnlyCollection<GradeRowResponse> Rows, GradeSummaryResponse Summary, DateTime? CalculatedAt, int PendingCancellationSuggestionCount = 0, decimal MaximumScore = 100, IReadOnlyCollection<Guid>? ManuallyAdjustedStudentIds = null);
 public sealed record GradeOperationResponse(GradesResponse Grades, IReadOnlyCollection<string> Issues);
 
 public sealed class UpdateGradeRequest

@@ -7,6 +7,8 @@ public sealed class ExamResult
     public Guid ExamId { get; set; }
     public Guid ImportedStudentId { get; set; }
     public decimal? RawScore { get; set; }
+    public decimal? ScaledScore { get; set; }
+    public decimal ManualScore { get; set; }
     public decimal? AdjustedScore { get; set; }
     public GradeStatus Status { get; set; }
     public DateTime CalculatedAt { get; set; }

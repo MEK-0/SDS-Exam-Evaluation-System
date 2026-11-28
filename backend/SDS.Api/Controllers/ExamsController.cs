@@ -18,7 +18,7 @@ namespace SDS.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api")]
-public sealed class ExamsController(IExamService examService, IStudentDataImportService importService, IAnswerKeyService answerKeyService, IStudentMatchingService matchingService, IGradeService gradeService, ILearningOutcomeService learningOutcomeService, IAnalysisService analysisService, IOpenEndedService openEndedService, ITermAnalysisService termAnalysisService) : ControllerBase
+public sealed class ExamsController(IExamService examService, IStudentDataImportService importService, IAnswerKeyService answerKeyService, IStudentMatchingService matchingService, IGradeService gradeService, ILearningOutcomeService learningOutcomeService, IAnalysisService analysisService, IOpenEndedService openEndedService, ITermAnalysisService termAnalysisService, ICancellationSuggestionService cancellationSuggestionService) : ControllerBase
 {
     [HttpGet("courses/{courseId:guid}/exams")]
     public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ExamResponse>>>> GetCourseExams(Guid courseId, CancellationToken cancellationToken)
@@ -280,6 +280,34 @@ public sealed class ExamsController(IExamService examService, IStudentDataImport
     {
         var response = await learningOutcomeService.SaveBookletMappingsAsync(examId, request, cancellationToken);
         return response is null ? NotFound(ApiResponse<LearningOutcomePageResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<LearningOutcomePageResponse>.Ok(response, "Kitapçık soru eşleştirmeleri kaydedildi."));
+    }
+
+    [HttpGet("exams/{examId:guid}/cancellation-suggestions")]
+    public async Task<ActionResult<ApiResponse<CancellationSuggestionsResponse>>> GetCancellationSuggestions(Guid examId, CancellationToken cancellationToken)
+    {
+        var response = await cancellationSuggestionService.GetAsync(examId, cancellationToken);
+        return response is null ? NotFound(ApiResponse<CancellationSuggestionsResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<CancellationSuggestionsResponse>.Ok(response));
+    }
+
+    [HttpPut("exams/{examId:guid}/cancellation-suggestions/{suggestionId:guid}/approve")]
+    public async Task<ActionResult<ApiResponse<CancellationSuggestionsResponse>>> ApproveCancellationSuggestion(Guid examId, Guid suggestionId, CancellationToken cancellationToken)
+    {
+        var response = await cancellationSuggestionService.ApproveAsync(examId, suggestionId, cancellationToken);
+        return response is null ? NotFound(ApiResponse<CancellationSuggestionsResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<CancellationSuggestionsResponse>.Ok(response, "İptal önerisi onaylandı; notlar yeniden hesaplandı."));
+    }
+
+    [HttpPut("exams/{examId:guid}/cancellation-suggestions/{suggestionId:guid}/reject")]
+    public async Task<ActionResult<ApiResponse<CancellationSuggestionsResponse>>> RejectCancellationSuggestion(Guid examId, Guid suggestionId, CancellationToken cancellationToken)
+    {
+        var response = await cancellationSuggestionService.RejectAsync(examId, suggestionId, cancellationToken);
+        return response is null ? NotFound(ApiResponse<CancellationSuggestionsResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<CancellationSuggestionsResponse>.Ok(response, "İptal önerisi reddedildi; soru aktif kaldı."));
+    }
+
+    [HttpPost("exams/{examId:guid}/question-mappings/reverse")]
+    public async Task<ActionResult<ApiResponse<LearningOutcomePageResponse>>> ApplyReverseBookletMapping(Guid examId, ReverseBookletMappingRequest request, CancellationToken cancellationToken)
+    {
+        var response = await learningOutcomeService.ApplyReverseMappingAsync(examId, request, cancellationToken);
+        return response is null ? NotFound(ApiResponse<LearningOutcomePageResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<LearningOutcomePageResponse>.Ok(response, "Kitapçık soruları ters sıraya eşleştirildi."));
     }
 
     [HttpPut("exams/{examId:guid}/learning-outcome-mappings")]

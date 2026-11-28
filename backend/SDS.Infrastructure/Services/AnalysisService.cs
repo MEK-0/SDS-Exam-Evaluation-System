@@ -56,8 +56,9 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
         var matches = await dbContext.StudentMatches.AsNoTracking().Include(item => item.OpticalExamRecord).Where(item => item.ExamId == examId).ToListAsync(cancellationToken);
         var results = await dbContext.ExamResults.AsNoTracking().Where(item => item.ExamId == examId).ToListAsync(cancellationToken);
         var outcomes = await dbContext.QuestionLearningOutcomes.AsNoTracking().Include(item => item.LearningOutcome).Include(item => item.ExamQuestion).Where(item => item.ExamId == examId).ToListAsync(cancellationToken);
+        var mappings = await dbContext.BookletQuestionMappings.AsNoTracking().Where(item => item.ExamId == examId).ToListAsync(cancellationToken);
         if (answerKey is null || imports is null) throw new InvalidOperationException("Sınav analiz verileri henüz tamamlanmamış.");
-        return new AnalysisData(exam, answerKey, imports.ImportedStudents.ToList(), imports.OpticalExamRecords.Where(item => item.IsValid && !item.IsAnswerKey).ToList(), matches, results, outcomes);
+        return new AnalysisData(exam, answerKey, imports.ImportedStudents.ToList(), imports.OpticalExamRecords.Where(item => item.IsValid && !item.IsAnswerKey).ToList(), matches, results, outcomes, mappings.ToLookup(item => item.BookletId));
     }
 
     private async Task<bool> HasAccessAsync(Guid courseId, CancellationToken cancellationToken)
@@ -88,9 +89,10 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
     private static IReadOnlyCollection<QuestionAnalysisResponse> BuildQuestions(AnalysisData data, IReadOnlyCollection<ExamResult> graded, IReadOnlyDictionary<Guid, StudentMatch> matches)
     {
         var rows = new List<QuestionAnalysisResponse>();
-        foreach (var logical in data.AnswerKey.Questions.Where(item => item.Status == ExamQuestionStatus.Active).OrderBy(item => item.CanonicalQuestionNumber))
+        foreach (var logical in data.AnswerKey.Questions.OrderBy(item => item.CanonicalQuestionNumber))
         {
-            var booklets = data.AnswerKey.Booklets.SelectMany(item => item.Questions.Where(question => question.ExamQuestionId == logical.Id).Select(question => (item.BookletCode, question))).ToList();
+            var booklets = data.AnswerKey.Booklets.SelectMany(item => item.Questions.Where(question => question.Status == ExamQuestionStatus.Active && BookletMappingResolver.ReferenceNumber(item, question, data.Mappings) == logical.CanonicalQuestionNumber).Select(question => (item.BookletCode, question))).ToList();
+            if (booklets.Count == 0) continue;
             var correct = 0; var participating = 0;
             foreach (var result in graded) if (matches.TryGetValue(result.ImportedStudentId, out var match) && match.OpticalExamRecord is not null && booklets.FirstOrDefault(item => item.BookletCode.Equals(match.OpticalExamRecord.BookletType, StringComparison.OrdinalIgnoreCase)).question is { } question) { participating++; var answer = AnswerAt(match.OpticalExamRecord.Answers, question.DisplayQuestionNumber); if (IsCorrect(answer, question.AcceptedAnswers)) correct++; }
             rows.Add(new QuestionAnalysisResponse(logical.CanonicalQuestionNumber, participating == 0 ? 0 : decimal.Round(correct * 100m / participating, 2), correct, participating));
@@ -106,7 +108,7 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
             {
                 var selected = graded.Where(result => matches.TryGetValue(result.ImportedStudentId, out var match) && match.OpticalExamRecord is not null && match.OpticalExamRecord.BookletType.Equals(booklet.BookletCode, StringComparison.OrdinalIgnoreCase)).Select(result => AnswerAt(matches[result.ImportedStudentId].OpticalExamRecord!.Answers, question.DisplayQuestionNumber)).ToList();
                 var choices = new[] { "A", "B", "C", "D", "E" }.Select(option => new ChoiceResponse(option, selected.Count(item => item == option), selected.Count == 0 ? 0 : decimal.Round(selected.Count(item => item == option) * 100m / selected.Count, 2), question.AcceptedAnswers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(option, StringComparer.OrdinalIgnoreCase))).ToList();
-                output.Add(new ChoiceDistributionResponse(question.ExamQuestion.CanonicalQuestionNumber, booklet.BookletCode, choices, selected.Count(string.IsNullOrWhiteSpace), selected.Count));
+                output.Add(new ChoiceDistributionResponse(BookletMappingResolver.ReferenceNumber(booklet, question, data.Mappings), booklet.BookletCode, choices, selected.Count(string.IsNullOrWhiteSpace), selected.Count));
             }
         return output;
     }
@@ -120,7 +122,7 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
         }
         if (result?.Status != GradeStatus.Graded || match?.OpticalExamRecord is null) return new AnalysisStudentDetailResponse(student.Id, student.StudentNumber, $"{student.FirstName} {student.LastName}".Trim(), "Sınava Girmedi", null, null, null, 0, 0, 0, []);
         var booklet = data.AnswerKey.Booklets.FirstOrDefault(item => item.BookletCode.Equals(match.OpticalExamRecord.BookletType, StringComparison.OrdinalIgnoreCase));
-        var questions = booklet?.Questions.OrderBy(item => item.DisplayQuestionNumber).Select(item => { var answer = AnswerAt(match.OpticalExamRecord!.Answers, item.DisplayQuestionNumber); return new StudentQuestionResponse(item.ExamQuestion.CanonicalQuestionNumber, string.IsNullOrWhiteSpace(answer) ? "Boş" : answer, item.AcceptedAnswers, IsCorrect(answer, item.AcceptedAnswers), string.IsNullOrWhiteSpace(answer)); }).ToList() ?? [];
+        var questions = booklet?.Questions.OrderBy(item => item.DisplayQuestionNumber).Select(item => { var answer = AnswerAt(match.OpticalExamRecord!.Answers, item.DisplayQuestionNumber); return new StudentQuestionResponse(BookletMappingResolver.ReferenceNumber(booklet, item, data.Mappings), string.IsNullOrWhiteSpace(answer) ? "Boş" : answer, item.AcceptedAnswers, IsCorrect(answer, item.AcceptedAnswers), string.IsNullOrWhiteSpace(answer)); }).ToList() ?? [];
         return new AnalysisStudentDetailResponse(student.Id, student.StudentNumber, $"{student.FirstName} {student.LastName}".Trim(), "Değerlendirildi", booklet?.BookletCode, result.RawScore, result.AdjustedScore, questions.Count(item => item.IsCorrect), questions.Count(item => !item.IsCorrect && !item.IsBlank), questions.Count(item => item.IsBlank), questions);
     }
 
@@ -131,5 +133,5 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
     private static string Format(decimal? value) => value?.ToString("0.##") ?? "—";
     private static void WriteHeader(IXLWorksheet sheet, IReadOnlyCollection<string> headers) { for (var index = 0; index < headers.Count; index++) sheet.Cell(1, index + 1).Value = headers.ElementAt(index); sheet.Row(1).Style.Font.Bold = true; }
 
-    private sealed record AnalysisData(Exam Exam, ExamAnswerKey AnswerKey, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<OpticalExamRecord> OpticalRecords, IReadOnlyCollection<StudentMatch> Matches, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<QuestionLearningOutcome> Outcomes);
+    private sealed record AnalysisData(Exam Exam, ExamAnswerKey AnswerKey, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<OpticalExamRecord> OpticalRecords, IReadOnlyCollection<StudentMatch> Matches, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<QuestionLearningOutcome> Outcomes, ILookup<Guid, BookletQuestionMapping> Mappings);
 }
