@@ -149,4 +149,19 @@ public sealed class GradeScoringTests
         var service = new SDS.Infrastructure.Services.GradeService(fixture.Context, fixture.Outsider);
         Assert.Null(await service.GetAsync(fixture.ExamId, default));
     }
+
+    [Fact]
+    public async Task KK7_H12_GradeScreenUsesPolicyThresholds()
+    {
+        await using var fixture = await ScoringFixture.CreateAsync();
+        fixture.Context.GradingPolicies.Add(new GradingPolicy { Id = Guid.NewGuid(), AaMinimum = 95, BaMinimum = 85, BbMinimum = 80, CbMinimum = 70, CcMinimum = 60, DcMinimum = 50, MidtermWeight = 40, FinalWeight = 60, MakeUpWeight = 60, UpdatedAt = DateTime.UtcNow });
+        await fixture.Context.SaveChangesAsync();
+        await fixture.SaveKeyAsync(ScoringFixture.KeyRequest(100, 10, ("A", "AAAAAAAAAA")));
+        await fixture.AddStudentAsync("001", "A", "AAAAAAAAAA");
+        await fixture.AddStudentAsync("002", "A", "AAAAAAAAAB");
+        var rows = await fixture.CalculateAsync();
+        Assert.Equal("AA", rows["001"].LetterGrade);
+        Assert.Equal(90m, rows["002"].AdjustedScore);
+        Assert.Equal("BA", rows["002"].LetterGrade);
+    }
 }

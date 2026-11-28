@@ -31,4 +31,16 @@ public sealed class GradeLetterCalculatorTests
     {
         Assert.Null(GradeLetterCalculator.Calculate(null));
     }
+
+    [Fact]
+    public void KK7_H12_LetterUsesPolicyThresholds()
+    {
+        var thresholds = new GradeThresholds(95, 85, 80, 70, 60, 50);
+        Assert.Equal("BA", GradeLetterCalculator.Calculate(90, thresholds));
+        Assert.Equal("AA", GradeLetterCalculator.Calculate(95, thresholds));
+        Assert.Equal("CB", GradeLetterCalculator.Calculate(70, thresholds));
+        Assert.Equal("BB", GradeLetterCalculator.Calculate(79.99m, new GradeThresholds(90, 85, 75, 70, 60, 50)));
+        Assert.Equal("FF", GradeLetterCalculator.Calculate(49.99m, thresholds));
+        Assert.Null(GradeLetterCalculator.Calculate(null, thresholds));
+    }
 }

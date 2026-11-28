@@ -154,7 +154,8 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         var calculatedAt = results.Count == 0 ? null : results.Max(item => (DateTime?)item.CalculatedAt);
         var pendingCount = await dbContext.QuestionCancellationSuggestions.CountAsync(item => item.ExamId == examId && item.Status == CancellationSuggestionStatus.Pending, cancellationToken);
         var maximumScore = await dbContext.ExamAnswerKeys.Where(item => item.ExamId == examId).Select(item => (decimal?)item.MaximumScore).SingleOrDefaultAsync(cancellationToken) ?? 100m;
-        return new GradeData(exam, students, results, projectGrades, calculatedAt, pendingCount, maximumScore);
+        var thresholds = await InfrastructureServiceSupport.LoadThresholdsAsync(dbContext, cancellationToken);
+        return new GradeData(exam, students, results, projectGrades, calculatedAt, pendingCount, maximumScore, thresholds);
     }
 
     private async Task<CalculationData?> LoadCalculationDataAsync(Guid examId, CancellationToken cancellationToken)
@@ -221,9 +222,9 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         if (score is < 0 or > 100) throw new ArgumentException("Düzeltilmiş puan 0 ile 100 arasında olmalıdır.");
     }
 
-    private static GradesResponse ToResponse(GradeData data) => ToResponse(data.Results, data.Students, data.ProjectGrades, data.CalculatedAt, data.PendingSuggestionCount, data.MaximumScore);
+    private static GradesResponse ToResponse(GradeData data) => ToResponse(data.Results, data.Students, data.ProjectGrades, data.CalculatedAt, data.PendingSuggestionCount, data.MaximumScore, data.Thresholds);
 
-    private static GradesResponse ToResponse(IReadOnlyCollection<ExamResult> results, IReadOnlyCollection<ImportedStudent> students, IReadOnlyCollection<ProjectGradeImport> projectGrades, DateTime? calculatedAt, int pendingSuggestionCount, decimal maximumScore)
+    private static GradesResponse ToResponse(IReadOnlyCollection<ExamResult> results, IReadOnlyCollection<ImportedStudent> students, IReadOnlyCollection<ProjectGradeImport> projectGrades, DateTime? calculatedAt, int pendingSuggestionCount, decimal maximumScore, GradeThresholds thresholds)
     {
         var resultMap = results.ToDictionary(item => item.ImportedStudentId);
         var projectMap = projectGrades.ToDictionary(item => item.ImportedStudentId);
@@ -233,7 +234,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
             var status = result?.Status ?? GradeStatus.NotEntered;
             projectMap.TryGetValue(student.Id, out var project);
             var score = status == GradeStatus.Graded ? result?.AdjustedScore ?? result?.RawScore : null;
-            return new GradeRowResponse(result?.Id ?? Guid.Empty, student.Id, student.StudentNumber, $@"{student.FirstName} {student.LastName}".Trim(), result?.RawScore, result?.AdjustedScore, result?.Adjustments.Sum(item => item.Amount) ?? 0, project?.ProjectScore, status, result?.UpdatedAt ?? DateTime.MinValue, GradeLetterCalculator.Calculate(score), result?.ScaledScore, result?.Adjustments.Any(item => item.Type == GradeAdjustmentType.ManualOverride) ?? false);
+            return new GradeRowResponse(result?.Id ?? Guid.Empty, student.Id, student.StudentNumber, $@"{student.FirstName} {student.LastName}".Trim(), result?.RawScore, result?.AdjustedScore, result?.Adjustments.Sum(item => item.Amount) ?? 0, project?.ProjectScore, status, result?.UpdatedAt ?? DateTime.MinValue, GradeLetterCalculator.Calculate(score, thresholds), result?.ScaledScore, result?.Adjustments.Any(item => item.Type == GradeAdjustmentType.ManualOverride) ?? false);
         }).OrderBy(item => item.StudentNumber, StringComparer.Ordinal).ToList();
         var scores = rows.Where(item => item.Status == GradeStatus.Graded && item.AdjustedScore.HasValue).Select(item => item.AdjustedScore!.Value).OrderBy(item => item).ToList();
         decimal? average = scores.Count == 0 ? null : scores.Average();
@@ -279,7 +280,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty);
     private Guid GetUserId() => currentUser.Get().Id ?? throw new InvalidOperationException("Oturum kullanıcısı bulunamadı.");
-    private sealed record GradeData(Exam Exam, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<ProjectGradeImport> ProjectGrades, DateTime? CalculatedAt, int PendingSuggestionCount, decimal MaximumScore);
+    private sealed record GradeData(Exam Exam, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<ProjectGradeImport> ProjectGrades, DateTime? CalculatedAt, int PendingSuggestionCount, decimal MaximumScore, GradeThresholds Thresholds);
     private sealed record CalculationData(Exam Exam, ExamAnswerKey? AnswerKey, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<StudentMatch> Matches);
     private sealed record ProjectRow(string Number, decimal? Score, int RowNumber);
 }
