@@ -192,12 +192,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("MatchingUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OpticalTemplateVersionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OpticalTemplateVersionId");
 
                     b.HasIndex("CourseId", "ExamType");
 
@@ -735,6 +740,102 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("OpticalSystemSettings");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDefault")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = TRUE");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("OpticalTemplates");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AnswersLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AnswersStart")
+                        .HasColumnType("integer");
+
+                    b.Property<char>("BlankMarkChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("BookletTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookletTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<char>("DoubleMarkChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<string>("EncodingMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("ExamTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExamTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OpticalTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("StudentNameLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StudentNameStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OpticalTemplateId", "VersionNo")
+                        .IsUnique();
+
+                    b.ToTable("OpticalTemplateVersions");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1072,7 +1173,14 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SDS.Domain.Entities.OpticalTemplateVersion", "OpticalTemplateVersion")
+                        .WithMany()
+                        .HasForeignKey("OpticalTemplateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Course");
+
+                    b.Navigation("OpticalTemplateVersion");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ExamAnswerKey", b =>
@@ -1210,6 +1318,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Exam");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplateVersion", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.OpticalTemplate", "OpticalTemplate")
+                        .WithMany("Versions")
+                        .HasForeignKey("OpticalTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OpticalTemplate");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
@@ -1401,6 +1520,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SDS.Domain.Entities.LearningOutcome", b =>
                 {
                     b.Navigation("QuestionLinks");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplate", b =>
+                {
+                    b.Navigation("Versions");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.StudentMatch", b =>
