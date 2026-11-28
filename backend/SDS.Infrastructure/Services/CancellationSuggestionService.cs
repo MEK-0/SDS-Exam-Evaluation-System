@@ -33,9 +33,9 @@ public sealed class CancellationSuggestionService(SdsDbContext dbContext, ICurre
             suggestion.DecidedAt = DateTime.UtcNow;
             suggestion.DecidedByUserId = currentUser.Get().Id;
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (await dbContext.ExamResults.AnyAsync(item => item.ExamId == examId, cancellationToken)) await gradeService.CalculateAsync(examId, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        if (await dbContext.ExamResults.AnyAsync(item => item.ExamId == examId, cancellationToken)) await gradeService.CalculateAsync(examId, cancellationToken);
         return await BuildResponseAsync(examId, cancellationToken);
     }
 

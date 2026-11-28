@@ -21,7 +21,9 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         var data = await LoadCalculationDataAsync(examId, cancellationToken);
         if (data is null) return null;
         EnsureReady(data.Exam, data.AnswerKey);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var ownTransaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         var template = await dbContext.OpticalTemplateVersions.AsNoTracking().SingleAsync(item => item.Id == data.Exam.OpticalTemplateVersionId, cancellationToken);
         var existing = await dbContext.ExamResults.Include(item => item.Adjustments).Where(item => item.ExamId == examId).ToDictionaryAsync(item => item.ImportedStudentId, cancellationToken);
         var matches = data.Matches.Where(item => item.ImportedStudentId.HasValue).ToDictionary(item => item.ImportedStudentId!.Value);
@@ -61,7 +63,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
             result.UpdatedAt = DateTime.UtcNow;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (ownTransaction is not null) await ownTransaction.CommitAsync(cancellationToken);
         return await GetAsync(examId, cancellationToken);
     }
 
