@@ -13,7 +13,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
     public async Task<GradesResponse?> GetAsync(Guid examId, CancellationToken cancellationToken)
     {
         var data = await LoadAsync(examId, cancellationToken);
-        return data is null ? null : ToResponse(data.Results, data.Students, data.ProjectGrades, data.CalculatedAt);
+        return data is null ? null : ToResponse(data);
     }
 
     public async Task<GradesResponse?> CalculateAsync(Guid examId, CancellationToken cancellationToken)
@@ -21,9 +21,12 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         var data = await LoadCalculationDataAsync(examId, cancellationToken);
         if (data is null) return null;
         EnsureReady(data.Exam, data.AnswerKey);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var existing = await dbContext.ExamResults.Where(item => item.ExamId == examId).ToDictionaryAsync(item => item.ImportedStudentId, cancellationToken);
-        var matches = data.Matches.ToDictionary(item => item.ImportedStudentId);
+        await using var ownTransaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        var template = await dbContext.OpticalTemplateVersions.AsNoTracking().SingleAsync(item => item.Id == data.Exam.OpticalTemplateVersionId, cancellationToken);
+        var existing = await dbContext.ExamResults.Include(item => item.Adjustments).Where(item => item.ExamId == examId).ToDictionaryAsync(item => item.ImportedStudentId, cancellationToken);
+        var matches = data.Matches.Where(item => item.ImportedStudentId.HasValue).ToDictionary(item => item.ImportedStudentId!.Value);
         var booklets = data.AnswerKey!.Booklets.ToDictionary(item => item.BookletCode, StringComparer.OrdinalIgnoreCase);
         foreach (var student in data.Students)
         {
@@ -37,22 +40,30 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
             if (match is null || match.Status == StudentMatchStatus.Absent || match.OpticalExamRecord is null)
             {
                 result.RawScore = null;
+                result.ScaledScore = null;
                 result.AdjustedScore = null;
                 result.Status = GradeStatus.Absent;
             }
             else
             {
                 if (!booklets.TryGetValue(match.OpticalExamRecord.BookletType.Trim(), out var booklet)) throw new InvalidOperationException($@"{student.StudentNumber} öğrencisinin kitapçığı için cevap anahtarı bulunamadı.");
-                var rawScore = CalculateScore(match.OpticalExamRecord.Answers, booklet);
+                var rawScore = decimal.Round(CalculateScore(match.OpticalExamRecord.Answers, booklet, template) + result.ManualScore, 2, MidpointRounding.AwayFromZero);
+                var scaledScore = decimal.Round(rawScore * 100m / data.AnswerKey!.MaximumScore, 2, MidpointRounding.AwayFromZero);
                 result.RawScore = rawScore;
-                result.AdjustedScore ??= rawScore;
+                result.ScaledScore = scaledScore;
+                var isManuallyAdjusted = result.Adjustments.Any(item => item.Type == GradeAdjustmentType.ManualOverride);
+                if (!isManuallyAdjusted || result.AdjustedScore is null)
+                {
+                    var bonus = result.Adjustments.Where(item => item.Type == GradeAdjustmentType.Bonus).Sum(item => item.Amount);
+                    result.AdjustedScore = decimal.Round(Math.Clamp(scaledScore + bonus, 0, 100), 2, MidpointRounding.AwayFromZero);
+                }
                 result.Status = GradeStatus.Graded;
             }
             result.CalculatedAt = DateTime.UtcNow;
             result.UpdatedAt = DateTime.UtcNow;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (ownTransaction is not null) await ownTransaction.CommitAsync(cancellationToken);
         return await GetAsync(examId, cancellationToken);
     }
 
@@ -126,13 +137,13 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         var refreshed = await LoadAsync(examId, cancellationToken);
-        return refreshed is null ? null : new ProjectGradeImportResponse(ToResponse(refreshed.Results, refreshed.Students, refreshed.ProjectGrades, refreshed.CalculatedAt), validRows.Count, issues);
+        return refreshed is null ? null : new ProjectGradeImportResponse(ToResponse(refreshed), validRows.Count, issues);
     }
 
     public async Task<GradeSummaryResponse?> GetSummaryAsync(Guid examId, CancellationToken cancellationToken)
     {
         var data = await LoadAsync(examId, cancellationToken);
-        return data is null ? null : ToResponse(data.Results, data.Students, data.ProjectGrades, data.CalculatedAt).Summary;
+        return data is null ? null : ToResponse(data).Summary;
     }
 
     private async Task<GradeData?> LoadAsync(Guid examId, CancellationToken cancellationToken)
@@ -143,7 +154,10 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         var students = await dbContext.ExamImports.Where(item => item.ExamId == examId).SelectMany(item => item.ImportedStudents).AsNoTracking().ToListAsync(cancellationToken);
         var projectGrades = await dbContext.ProjectGradeImports.AsNoTracking().Where(item => item.ExamId == examId).ToListAsync(cancellationToken);
         var calculatedAt = results.Count == 0 ? null : results.Max(item => (DateTime?)item.CalculatedAt);
-        return new GradeData(exam, students, results, projectGrades, calculatedAt);
+        var pendingCount = await dbContext.QuestionCancellationSuggestions.CountAsync(item => item.ExamId == examId && item.Status == CancellationSuggestionStatus.Pending, cancellationToken);
+        var maximumScore = await dbContext.ExamAnswerKeys.Where(item => item.ExamId == examId).Select(item => (decimal?)item.MaximumScore).SingleOrDefaultAsync(cancellationToken) ?? 100m;
+        var thresholds = await InfrastructureServiceSupport.LoadThresholdsAsync(dbContext, cancellationToken);
+        return new GradeData(exam, students, results, projectGrades, calculatedAt, pendingCount, maximumScore, thresholds);
     }
 
     private async Task<CalculationData?> LoadCalculationDataAsync(Guid examId, CancellationToken cancellationToken)
@@ -172,16 +186,37 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         if (!exam.MatchingConfirmed) throw new InvalidOperationException("Puanlama için öğrenci eşleştirmesi onaylanmalıdır.");
     }
 
-    private static decimal CalculateScore(string answers, ExamBooklet booklet)
+    private static decimal CalculateScore(string answers, ExamBooklet booklet, OpticalTemplateVersion template)
     {
-        var score = 0m;
-        foreach (var question in booklet.Questions.Where(item => item.ExamQuestion.Status == ExamQuestionStatus.Active))
+        var earned = 0m;
+        var total = 0m;
+        var deducted = 0m;
+        foreach (var question in booklet.Questions.Where(item => item.ExamQuestion.Source == QuestionScoreSource.Optical))
         {
-            var index = question.DisplayQuestionNumber - 1;
-            var answer = index >= 0 && index < answers.Length ? answers[index].ToString().Trim().ToUpperInvariant() : string.Empty;
-            if (question.AcceptedAnswers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(answer, StringComparer.OrdinalIgnoreCase)) score += question.ExamQuestion.Points;
+            var points = question.Points ?? question.ExamQuestion.Points;
+            total += points;
+            if (question.Status == ExamQuestionStatus.Cancelled)
+            {
+                if (question.CancellationPolicy == QuestionCancellationPolicy.DeductAndScale) deducted += points;
+                else earned += points;
+                continue;
+            }
+            var answer = ReadAnswer(answers, question.DisplayQuestionNumber, template);
+            var accepted = question.AcceptedAnswers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (answer.Length > 0 && accepted.Contains(answer, StringComparer.OrdinalIgnoreCase)) earned += points;
         }
-        return decimal.Round(Math.Clamp(score, 0, 100), 2, MidpointRounding.AwayFromZero);
+        if (deducted == 0) return earned;
+        var effectiveTotal = total - deducted;
+        return effectiveTotal <= 0 ? 0 : earned * total / effectiveTotal;
+    }
+
+    private static string ReadAnswer(string answers, int questionNumber, OpticalTemplateVersion template)
+    {
+        var index = questionNumber - 1;
+        if (index < 0 || index >= answers.Length) return string.Empty;
+        var mark = answers[index];
+        if (mark == template.DoubleMarkChar || mark == template.BlankMarkChar) return string.Empty;
+        return mark.ToString().Trim().ToUpperInvariant();
     }
 
     private static void ValidateScore(decimal score)
@@ -189,7 +224,9 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         if (score is < 0 or > 100) throw new ArgumentException("Düzeltilmiş puan 0 ile 100 arasında olmalıdır.");
     }
 
-    private static GradesResponse ToResponse(IReadOnlyCollection<ExamResult> results, IReadOnlyCollection<ImportedStudent> students, IReadOnlyCollection<ProjectGradeImport> projectGrades, DateTime? calculatedAt)
+    private static GradesResponse ToResponse(GradeData data) => ToResponse(data.Results, data.Students, data.ProjectGrades, data.CalculatedAt, data.PendingSuggestionCount, data.MaximumScore, data.Thresholds);
+
+    private static GradesResponse ToResponse(IReadOnlyCollection<ExamResult> results, IReadOnlyCollection<ImportedStudent> students, IReadOnlyCollection<ProjectGradeImport> projectGrades, DateTime? calculatedAt, int pendingSuggestionCount, decimal maximumScore, GradeThresholds thresholds)
     {
         var resultMap = results.ToDictionary(item => item.ImportedStudentId);
         var projectMap = projectGrades.ToDictionary(item => item.ImportedStudentId);
@@ -199,13 +236,13 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
             var status = result?.Status ?? GradeStatus.NotEntered;
             projectMap.TryGetValue(student.Id, out var project);
             var score = status == GradeStatus.Graded ? result?.AdjustedScore ?? result?.RawScore : null;
-            return new GradeRowResponse(result?.Id ?? Guid.Empty, student.Id, student.StudentNumber, $@"{student.FirstName} {student.LastName}".Trim(), result?.RawScore, result?.AdjustedScore, result?.Adjustments.Sum(item => item.Amount) ?? 0, project?.ProjectScore, status, result?.UpdatedAt ?? DateTime.MinValue, GradeLetterCalculator.Calculate(score));
+            return new GradeRowResponse(result?.Id ?? Guid.Empty, student.Id, student.StudentNumber, $@"{student.FirstName} {student.LastName}".Trim(), result?.RawScore, result?.AdjustedScore, result?.Adjustments.Sum(item => item.Amount) ?? 0, project?.ProjectScore, status, result?.UpdatedAt ?? DateTime.MinValue, GradeLetterCalculator.Calculate(score, thresholds), result?.ScaledScore, result?.Adjustments.Any(item => item.Type == GradeAdjustmentType.ManualOverride) ?? false);
         }).OrderBy(item => item.StudentNumber, StringComparer.Ordinal).ToList();
         var scores = rows.Where(item => item.Status == GradeStatus.Graded && item.AdjustedScore.HasValue).Select(item => item.AdjustedScore!.Value).OrderBy(item => item).ToList();
         decimal? average = scores.Count == 0 ? null : scores.Average();
         decimal? median = scores.Count == 0 ? null : scores.Count % 2 == 1 ? scores[scores.Count / 2] : (scores[scores.Count / 2 - 1] + scores[scores.Count / 2]) / 2;
         double? variance = scores.Count == 0 ? null : scores.Sum(score => Math.Pow((double)(score - average!.Value), 2)) / scores.Count;
-        return new GradesResponse(rows, new GradeSummaryResponse(rows.Count, scores.Count, rows.Count(item => item.Status == GradeStatus.Absent), average, median, variance is null ? null : (decimal)Math.Sqrt(variance.Value), scores.Count == 0 ? null : scores.Max(), scores.Count == 0 ? null : scores.Min()), calculatedAt);
+        return new GradesResponse(rows, new GradeSummaryResponse(rows.Count, scores.Count, rows.Count(item => item.Status == GradeStatus.Absent), average, median, variance is null ? null : (decimal)Math.Sqrt(variance.Value), scores.Count == 0 ? null : scores.Max(), scores.Count == 0 ? null : scores.Min()), calculatedAt, pendingSuggestionCount, maximumScore, rows.Where(item => item.IsManuallyAdjusted).Select(item => item.ImportedStudentId).ToList());
     }
 
     private static IReadOnlyCollection<ProjectRow> ParseProjectGrades(Stream content, string fileName)
@@ -245,7 +282,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty);
     private Guid GetUserId() => currentUser.Get().Id ?? throw new InvalidOperationException("Oturum kullanıcısı bulunamadı.");
-    private sealed record GradeData(Exam Exam, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<ProjectGradeImport> ProjectGrades, DateTime? CalculatedAt);
+    private sealed record GradeData(Exam Exam, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<ExamResult> Results, IReadOnlyCollection<ProjectGradeImport> ProjectGrades, DateTime? CalculatedAt, int PendingSuggestionCount, decimal MaximumScore, GradeThresholds Thresholds);
     private sealed record CalculationData(Exam Exam, ExamAnswerKey? AnswerKey, IReadOnlyCollection<ImportedStudent> Students, IReadOnlyCollection<StudentMatch> Matches);
     private sealed record ProjectRow(string Number, decimal? Score, int RowNumber);
 }

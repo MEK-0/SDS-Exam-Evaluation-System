@@ -10,6 +10,7 @@ public sealed class OpticalExamRecord
     public string StudentName { get; set; } = string.Empty;
     public string BookletType { get; set; } = string.Empty;
     public string Answers { get; set; } = string.Empty;
+    public string ExamTypeValue { get; set; } = string.Empty;
     public bool IsValid { get; set; }
     public bool IsAnswerKey { get; set; }
     public string? ErrorMessage { get; set; }

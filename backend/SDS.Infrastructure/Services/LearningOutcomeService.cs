@@ -48,6 +48,27 @@ public sealed class LearningOutcomeService(SdsDbContext dbContext, ICurrentUser 
         return await BuildPageAsync(exam, cancellationToken);
     }
 
+    public async Task<LearningOutcomePageResponse?> ApplyReverseMappingAsync(Guid examId, ReverseBookletMappingRequest request, CancellationToken cancellationToken)
+    {
+        var exam = await LoadExamAsync(examId, cancellationToken);
+        if (exam is null) return null;
+        if (exam.EvaluationType != EvaluationType.MultipleChoice || exam.AnswerKey is null) throw new InvalidOperationException("Kitapçık eşleştirmesi için çoktan seçmeli sınavın cevap anahtarı hazırlanmalıdır.");
+        var referenceCode = GetReferenceBookletCode(exam.AnswerKey);
+        var code = request.BookletCode.Trim().ToUpperInvariant();
+        var booklet = exam.AnswerKey.Booklets.FirstOrDefault(item => item.BookletCode == code);
+        if (booklet is null) throw new ArgumentException("Kitapçık bulunamadı.");
+        if (code == referenceCode) throw new ArgumentException("Referans kitapçık için eşleştirme yapılamaz.");
+        var count = exam.AnswerKey.QuestionCount;
+        var reference = exam.AnswerKey.Booklets.Single(item => item.BookletCode == referenceCode);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var existing = await dbContext.BookletQuestionMappings.Where(item => item.ExamId == examId && item.BookletId == booklet.Id).ToListAsync(cancellationToken);
+        dbContext.BookletQuestionMappings.RemoveRange(existing);
+        dbContext.BookletQuestionMappings.AddRange(Enumerable.Range(1, count).Select(number => new BookletQuestionMapping { Id = Guid.NewGuid(), ExamId = examId, ReferenceBookletId = reference.Id, BookletId = booklet.Id, ReferenceQuestionNumber = number, BookletQuestionNumber = count - number + 1 }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return await BuildPageAsync(exam, cancellationToken);
+    }
+
     public async Task<LearningOutcomePageResponse?> SaveOutcomeMappingsAsync(Guid examId, SaveLearningOutcomeMappingsRequest request, CancellationToken cancellationToken)
     {
         var exam = await LoadExamAsync(examId, cancellationToken);
@@ -67,6 +88,7 @@ public sealed class LearningOutcomeService(SdsDbContext dbContext, ICurrentUser 
         var exam = await LoadExamAsync(examId, cancellationToken);
         if (exam is null) return null;
         if (exam.Status == ExamStatus.Completed) return await BuildPageAsync(exam, cancellationToken);
+        await EnsureNoPendingCancellationSuggestionsAsync(examId, cancellationToken);
         await ValidatePreviousStepsAsync(exam, cancellationToken);
         if (exam.EvaluationType == EvaluationType.MultipleChoice) ValidateBookletMappings(exam, request.BookletMappings);
         await ValidateOutcomeMappingsAsync(exam, request.LearningOutcomeMappings, cancellationToken);
@@ -88,7 +110,7 @@ public sealed class LearningOutcomeService(SdsDbContext dbContext, ICurrentUser 
 
     private async Task<Exam?> LoadExamAsync(Guid examId, CancellationToken cancellationToken)
     {
-        var exam = await dbContext.Exams.Include(item => item.Course).Include(item => item.AnswerKey!).ThenInclude(item => item.Booklets).ThenInclude(item => item.Questions).Include(item => item.AnswerKey!).ThenInclude(item => item.Questions).SingleOrDefaultAsync(item => item.Id == examId, cancellationToken);
+        var exam = await dbContext.Exams.Include(item => item.Course).Include(item => item.AnswerKey!).ThenInclude(item => item.Booklets).ThenInclude(item => item.Questions).ThenInclude(item => item.ExamQuestion).Include(item => item.AnswerKey!).ThenInclude(item => item.Questions).SingleOrDefaultAsync(item => item.Id == examId, cancellationToken);
         return exam is null || !await CanAccessCourseAsync(exam.CourseId, cancellationToken) ? null : exam;
     }
 
@@ -98,10 +120,30 @@ public sealed class LearningOutcomeService(SdsDbContext dbContext, ICurrentUser 
         var questionCount = exam.AnswerKey?.QuestionCount ?? 0;
         var mappings = await dbContext.BookletQuestionMappings.AsNoTracking().Where(item => item.ExamId == exam.Id).Include(item => item.ReferenceBooklet).Include(item => item.Booklet).ToListAsync(cancellationToken);
         var outcomeMappings = await dbContext.QuestionLearningOutcomes.AsNoTracking().Where(item => item.ExamId == exam.Id).ToListAsync(cancellationToken);
-        var referenceCode = exam.AnswerKey?.Booklets.OrderBy(item => item.BookletCode).FirstOrDefault()?.BookletCode ?? "A";
-        var bookletResponses = exam.AnswerKey?.Booklets.Where(item => item.BookletCode != referenceCode).OrderBy(item => item.BookletCode).Select(booklet => new BookletQuestionMappingResponse(referenceCode, booklet.BookletCode, mappings.Where(item => item.BookletId == booklet.Id).OrderBy(item => item.ReferenceQuestionNumber).Select(item => new BookletQuestionMappingItem(item.ReferenceQuestionNumber, item.BookletQuestionNumber)).ToList())).ToList() ?? [];
+        var referenceCode = exam.AnswerKey is null ? "A" : GetReferenceBookletCode(exam.AnswerKey);
+        var bookletResponses = exam.AnswerKey?.Booklets.Where(item => item.BookletCode != referenceCode).OrderBy(item => item.BookletCode).Select(booklet => new BookletQuestionMappingResponse(referenceCode, booklet.BookletCode, BuildMappingItems(booklet, mappings))).ToList() ?? [];
         var outcomeResponses = outcomeMappings.GroupBy(item => item.LearningOutcomeId).Select(group => new LearningOutcomeQuestionMapResponse(group.Key, group.Select(item => exam.AnswerKey!.Questions.Single(question => question.Id == item.ExamQuestionId).CanonicalQuestionNumber).OrderBy(number => number).ToList())).ToList();
         return new LearningOutcomePageResponse(outcomes.Select(item => new LearningOutcomeResponse(item.Id, item.CourseId, item.Description, item.DisplayOrder, item.UpdatedAt)).ToList(), bookletResponses, outcomeResponses, questionCount, exam.EvaluationType == EvaluationType.MultipleChoice, exam.Status == ExamStatus.Completed);
+    }
+
+    private static IReadOnlyCollection<BookletQuestionMappingItem> BuildMappingItems(ExamBooklet booklet, IReadOnlyCollection<BookletQuestionMapping> mappings)
+    {
+        var stored = mappings.Where(item => item.BookletId == booklet.Id).OrderBy(item => item.ReferenceQuestionNumber).Select(item => new BookletQuestionMappingItem(item.ReferenceQuestionNumber, item.BookletQuestionNumber)).ToList();
+        if (stored.Count > 0) return stored;
+        return booklet.Questions.OrderBy(item => item.ExamQuestion.CanonicalQuestionNumber).Select(item => new BookletQuestionMappingItem(item.ExamQuestion.CanonicalQuestionNumber, item.DisplayQuestionNumber)).ToList();
+    }
+
+    private static string GetReferenceBookletCode(ExamAnswerKey answerKey)
+    {
+        return answerKey.Booklets.FirstOrDefault(item => item.BookletCode == "A")?.BookletCode ?? answerKey.Booklets.OrderBy(item => item.BookletCode).First().BookletCode;
+    }
+
+    private async Task EnsureNoPendingCancellationSuggestionsAsync(Guid examId, CancellationToken cancellationToken)
+    {
+        var pending = await dbContext.QuestionCancellationSuggestions.AsNoTracking().Where(item => item.ExamId == examId && item.Status == CancellationSuggestionStatus.Pending).OrderBy(item => item.TargetBookletCode).ThenBy(item => item.TargetQuestionNumber).ToListAsync(cancellationToken);
+        if (pending.Count == 0) return;
+        var list = string.Join(", ", pending.Select(item => $"{item.TargetBookletCode} kitapçığı {item.TargetQuestionNumber}. soru"));
+        throw new InvalidOperationException($"Sınav tamamlanamaz: bekleyen soru iptal önerileri var ({list}). Her öneriyi onaylayın veya reddedin.");
     }
 
     private void ValidateBookletMappings(Exam exam, SaveBookletQuestionMappingsRequest request)

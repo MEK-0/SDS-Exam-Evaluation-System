@@ -11,7 +11,8 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseInstructor> CourseInstructors => Set<CourseInstructor>();
     public DbSet<Exam> Exams => Set<Exam>();
-    public DbSet<OpticalFormConfiguration> OpticalFormConfigurations => Set<OpticalFormConfiguration>();
+    public DbSet<OpticalTemplate> OpticalTemplates => Set<OpticalTemplate>();
+    public DbSet<OpticalTemplateVersion> OpticalTemplateVersions => Set<OpticalTemplateVersion>();
     public DbSet<ExamImport> ExamImports => Set<ExamImport>();
     public DbSet<ImportedStudent> ImportedStudents => Set<ImportedStudent>();
     public DbSet<OpticalExamRecord> OpticalExamRecords => Set<OpticalExamRecord>();
@@ -28,9 +29,9 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
     public DbSet<LearningOutcome> LearningOutcomes => Set<LearningOutcome>();
     public DbSet<QuestionLearningOutcome> QuestionLearningOutcomes => Set<QuestionLearningOutcome>();
     public DbSet<BookletQuestionMapping> BookletQuestionMappings => Set<BookletQuestionMapping>();
+    public DbSet<QuestionCancellationSuggestion> QuestionCancellationSuggestions => Set<QuestionCancellationSuggestion>();
     public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
     public DbSet<GradingPolicy> GradingPolicies => Set<GradingPolicy>();
-    public DbSet<OpticalSystemSettings> OpticalSystemSettings => Set<OpticalSystemSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,13 +77,22 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.Property(item => item.EvaluationType).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.HasOne(item => item.Course).WithMany(item => item.Exams).HasForeignKey(item => item.CourseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.OpticalTemplateVersion).WithMany().HasForeignKey(item => item.OpticalTemplateVersionId).IsRequired().OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.OpticalTemplateVersionId);
         });
-        modelBuilder.Entity<OpticalFormConfiguration>(entity =>
+        modelBuilder.Entity<OpticalTemplate>(entity =>
         {
             entity.HasKey(item => item.Id);
-            entity.HasIndex(item => item.ExamId).IsUnique();
-            entity.Property(item => item.EncodingName).HasMaxLength(64).IsRequired();
-            entity.HasOne(item => item.Exam).WithOne(item => item.OpticalFormConfiguration).HasForeignKey<OpticalFormConfiguration>(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.Property(item => item.Name).HasMaxLength(160).IsRequired();
+            entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => item.IsDefault).IsUnique().HasFilter("\"IsDefault\" = TRUE");
+        });
+        modelBuilder.Entity<OpticalTemplateVersion>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.OpticalTemplateId, item.VersionNo }).IsUnique();
+            entity.Property(item => item.EncodingMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.OpticalTemplate).WithMany(item => item.Versions).HasForeignKey(item => item.OpticalTemplateId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ExamImport>(entity =>
         {
@@ -107,6 +117,7 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.ExamImportId, item.LineNumber }).IsUnique();
             entity.Property(item => item.IsAnswerKey).IsRequired();
+            entity.Property(item => item.ExamTypeValue).HasMaxLength(16).IsRequired();
             entity.Property(item => item.StudentNumber).HasMaxLength(64).IsRequired();
             entity.Property(item => item.BookletType).HasMaxLength(16).IsRequired();
             entity.Property(item => item.Answers).HasMaxLength(4096).IsRequired();
@@ -143,6 +154,7 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasIndex(item => new { item.ExamAnswerKeyId, item.CanonicalQuestionNumber }).IsUnique();
             entity.Property(item => item.Points).HasPrecision(8, 4).IsRequired();
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Source).HasConversion<string>().HasMaxLength(32).HasDefaultValue(QuestionScoreSource.Optical).IsRequired();
             entity.HasOne(item => item.ExamAnswerKey).WithMany(item => item.Questions).HasForeignKey(item => item.ExamAnswerKeyId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<BookletQuestion>(entity =>
@@ -151,6 +163,9 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasIndex(item => new { item.ExamBookletId, item.DisplayQuestionNumber }).IsUnique();
             entity.HasIndex(item => new { item.ExamBookletId, item.ExamQuestionId }).IsUnique();
             entity.Property(item => item.AcceptedAnswers).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Points).HasPrecision(8, 4);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ExamQuestionStatus.Active).IsRequired();
+            entity.Property(item => item.CancellationPolicy).HasConversion<string>().HasMaxLength(32).HasDefaultValue(QuestionCancellationPolicy.AwardFullPoints).IsRequired();
             entity.HasOne(item => item.ExamBooklet).WithMany(item => item.Questions).HasForeignKey(item => item.ExamBookletId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(item => item.ExamQuestion).WithMany(item => item.BookletQuestions).HasForeignKey(item => item.ExamQuestionId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -181,6 +196,8 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.HasIndex(item => new { item.ExamId, item.ImportedStudentId }).IsUnique();
             entity.Property(item => item.RawScore).HasPrecision(8, 2);
             entity.Property(item => item.AdjustedScore).HasPrecision(8, 2);
+            entity.Property(item => item.ScaledScore).HasPrecision(8, 2);
+            entity.Property(item => item.ManualScore).HasPrecision(8, 2).HasDefaultValue(0m);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(item => item.ImportedStudent).WithMany().HasForeignKey(item => item.ImportedStudentId).OnDelete(DeleteBehavior.Cascade);
@@ -225,10 +242,20 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
         {
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.ExamId, item.BookletId, item.BookletQuestionNumber }).IsUnique();
-            entity.HasIndex(item => new { item.ExamId, item.ReferenceBookletId, item.ReferenceQuestionNumber }).IsUnique();
+            entity.HasIndex(item => new { item.ExamId, item.ReferenceBookletId, item.BookletId, item.ReferenceQuestionNumber }).IsUnique();
             entity.HasOne(item => item.Exam).WithMany(item => item.BookletQuestionMappings).HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(item => item.ReferenceBooklet).WithMany(item => item.ReferenceMappings).HasForeignKey(item => item.ReferenceBookletId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Booklet).WithMany(item => item.Mappings).HasForeignKey(item => item.BookletId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<QuestionCancellationSuggestion>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.ExamId, item.SourceBookletCode, item.SourceQuestionNumber, item.TargetBookletCode, item.TargetQuestionNumber }).IsUnique();
+            entity.Property(item => item.SourceBookletCode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.TargetBookletCode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Policy).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.HasOne(item => item.Exam).WithMany().HasForeignKey(item => item.ExamId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<PasswordResetRequest>(entity =>
         {
@@ -250,11 +277,6 @@ public sealed class SdsDbContext(DbContextOptions<SdsDbContext> options) : DbCon
             entity.Property(item => item.MidtermWeight).HasPrecision(5, 2);
             entity.Property(item => item.FinalWeight).HasPrecision(5, 2);
             entity.Property(item => item.MakeUpWeight).HasPrecision(5, 2);
-        });
-        modelBuilder.Entity<OpticalSystemSettings>(entity =>
-        {
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.EncodingName).HasMaxLength(64).IsRequired();
         });
     }
 }

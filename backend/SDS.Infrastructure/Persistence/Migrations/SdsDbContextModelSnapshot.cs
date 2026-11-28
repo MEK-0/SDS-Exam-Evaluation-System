@@ -55,6 +55,13 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("CancellationPolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("AwardFullPoints");
+
                     b.Property<int>("DisplayQuestionNumber")
                         .HasColumnType("integer");
 
@@ -63,6 +70,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ExamQuestionId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Points")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Active");
 
                     b.HasKey("Id");
 
@@ -107,7 +125,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.HasIndex("ExamId", "BookletId", "BookletQuestionNumber")
                         .IsUnique();
 
-                    b.HasIndex("ExamId", "ReferenceBookletId", "ReferenceQuestionNumber")
+                    b.HasIndex("ExamId", "ReferenceBookletId", "BookletId", "ReferenceQuestionNumber")
                         .IsUnique();
 
                     b.ToTable("BookletQuestionMappings");
@@ -192,12 +210,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("MatchingUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("OpticalTemplateVersionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OpticalTemplateVersionId");
 
                     b.HasIndex("CourseId", "ExamType");
 
@@ -327,6 +350,13 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .HasPrecision(8, 4)
                         .HasColumnType("numeric(8,4)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Optical");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -359,7 +389,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ImportedStudentId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("ManualScore")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<decimal?>("RawScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<decimal?>("ScaledScore")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)");
 
@@ -605,6 +645,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ExamImportId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ExamTypeValue")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<bool>("IsAnswerKey")
                         .HasColumnType("boolean");
 
@@ -631,108 +676,100 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("OpticalExamRecords");
                 });
 
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalFormConfiguration", b =>
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplate", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AnswersLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("AnswersStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncodingName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("ExamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ExamTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ExamTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberStart")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExamId")
-                        .IsUnique();
-
-                    b.ToTable("OpticalFormConfigurations");
-                });
-
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalSystemSettings", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AnswersLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("AnswersStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BookletTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncodingName")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int?>("ExamTypeLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ExamTypeStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StudentNameStart")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberLength")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("StudentNumberStart")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("UpdatedByUserId")
-                        .HasColumnType("uuid");
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("OpticalSystemSettings");
+                    b.HasIndex("IsDefault")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = TRUE");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("OpticalTemplates");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AnswersLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AnswersStart")
+                        .HasColumnType("integer");
+
+                    b.Property<char>("BlankMarkChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<int>("BookletTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookletTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<char>("DoubleMarkChar")
+                        .HasColumnType("character(1)");
+
+                    b.Property<string>("EncodingMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("ExamTypeLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExamTypeStart")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OpticalTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("StudentNameLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StudentNameStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberLength")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentNumberStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OpticalTemplateId", "VersionNo")
+                        .IsUnique();
+
+                    b.ToTable("OpticalTemplateVersions");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
@@ -804,6 +841,58 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.ToTable("ProjectGradeImports");
                 });
 
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionCancellationSuggestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Policy")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("SourceBookletCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("SourceQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TargetBookletCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("TargetQuestionNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExamId", "SourceBookletCode", "SourceQuestionNumber", "TargetBookletCode", "TargetQuestionNumber")
+                        .IsUnique();
+
+                    b.ToTable("QuestionCancellationSuggestions");
+                });
+
             modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
                 {
                     b.Property<Guid>("Id")
@@ -840,7 +929,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ExamId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ImportedStudentId")
+                    b.Property<Guid?>("ImportedStudentId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsAbsent")
@@ -1072,7 +1161,15 @@ namespace SDS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SDS.Domain.Entities.OpticalTemplateVersion", "OpticalTemplateVersion")
+                        .WithMany()
+                        .HasForeignKey("OpticalTemplateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Course");
+
+                    b.Navigation("OpticalTemplateVersion");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.ExamAnswerKey", b =>
@@ -1201,15 +1298,15 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("ExamImport");
                 });
 
-            modelBuilder.Entity("SDS.Domain.Entities.OpticalFormConfiguration", b =>
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplateVersion", b =>
                 {
-                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
-                        .WithOne("OpticalFormConfiguration")
-                        .HasForeignKey("SDS.Domain.Entities.OpticalFormConfiguration", "ExamId")
+                    b.HasOne("SDS.Domain.Entities.OpticalTemplate", "OpticalTemplate")
+                        .WithMany("Versions")
+                        .HasForeignKey("OpticalTemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Exam");
+                    b.Navigation("OpticalTemplate");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.PasswordResetRequest", b =>
@@ -1247,6 +1344,17 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.Navigation("Exam");
 
                     b.Navigation("ImportedStudent");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.QuestionCancellationSuggestion", b =>
+                {
+                    b.HasOne("SDS.Domain.Entities.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.QuestionLearningOutcome", b =>
@@ -1287,8 +1395,7 @@ namespace SDS.Infrastructure.Persistence.Migrations
                     b.HasOne("SDS.Domain.Entities.ImportedStudent", "ImportedStudent")
                         .WithMany()
                         .HasForeignKey("ImportedStudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("SDS.Domain.Entities.User", "MatchedByUser")
                         .WithMany()
@@ -1356,8 +1463,6 @@ namespace SDS.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Imports");
 
-                    b.Navigation("OpticalFormConfiguration");
-
                     b.Navigation("QuestionLearningOutcomes");
                 });
 
@@ -1401,6 +1506,11 @@ namespace SDS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("SDS.Domain.Entities.LearningOutcome", b =>
                 {
                     b.Navigation("QuestionLinks");
+                });
+
+            modelBuilder.Entity("SDS.Domain.Entities.OpticalTemplate", b =>
+                {
+                    b.Navigation("Versions");
                 });
 
             modelBuilder.Entity("SDS.Domain.Entities.StudentMatch", b =>

@@ -1,0 +1,31 @@
+{
+  "sablonlar": [
+    {
+      "ad": "Örnek dosya düzeni (ornek_optik_cikti.txt)",
+      "studentNumberStart": 0,
+      "studentNumberLength": 9,
+      "studentNameStart": 21,
+      "studentNameLength": 20,
+      "bookletTypeStart": 20,
+      "bookletTypeLength": 1,
+      "examTypeStart": 18,
+      "examTypeLength": 1,
+      "answersStart": 42,
+      "answersLength": 25
+    },
+    {
+      "ad": "Selçuk Standart Optik Form",
+      "varsayilan": true,
+      "studentNumberStart": 0,
+      "studentNumberLength": 9,
+      "studentNameStart": 10,
+      "studentNameLength": 30,
+      "bookletTypeStart": 40,
+      "bookletTypeLength": 1,
+      "examTypeStart": 9,
+      "examTypeLength": 1,
+      "answersStart": 41,
+      "answersLength": 30
+    }
+  ]
+}

@@ -12,18 +12,20 @@ public sealed record OpticalFormConfigurationInput(
     int? ExamTypeLength,
     int AnswersStart,
     int AnswersLength,
-    string EncodingName);
+    string EncodingName,
+    char BlankMarkChar = ' ',
+    char DoubleMarkChar = '*');
 
-public sealed record ParsedOpticalRecord(int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false);
+public sealed record ParsedOpticalRecord(int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false, string ExamTypeValue = "", int BlankMarkCount = 0, int DoubleMarkCount = 0);
 public sealed record OpticalParseResult(IReadOnlyCollection<ParsedOpticalRecord> Records, IReadOnlyCollection<ImportIssue> Issues);
 public sealed record ParsedStudent(int RowNumber, string StudentNumber, string FirstName, string LastName, string SourceFileName = "");
 public sealed record ClassListParseResult(IReadOnlyCollection<ParsedStudent> Students, IReadOnlyCollection<ImportIssue> Issues);
 public sealed record ImportIssue(string Source, int? RowNumber, string Message);
 public sealed record ClassListFileInput(Stream Content, string FileName);
-public sealed record ImportPreviewResponse(Guid ImportId, string OpticalFileName, string ClassListFileName, IReadOnlyCollection<string> ClassListFileNames, int TotalOpticalRecordCount, int ValidOpticalRecordCount, int InvalidOpticalRecordCount, int StudentCount, IReadOnlyCollection<OpticalRecordPreview> OpticalRecords, IReadOnlyCollection<StudentPreview> Students, IReadOnlyCollection<ImportIssue> Issues, DateTime CreatedAt);
-public sealed record OpticalRecordPreview(int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false);
+public sealed record ImportPreviewResponse(Guid ImportId, string OpticalFileName, string ClassListFileName, IReadOnlyCollection<string> ClassListFileNames, int TotalOpticalRecordCount, int ValidOpticalRecordCount, int InvalidOpticalRecordCount, int StudentCount, IReadOnlyCollection<OpticalRecordPreview> OpticalRecords, IReadOnlyCollection<StudentPreview> Students, IReadOnlyCollection<ImportIssue> Issues, DateTime CreatedAt, IReadOnlyCollection<ImportIssue> Warnings);
+public sealed record OpticalRecordPreview(int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false, string ExamTypeValue = "");
 public sealed record StudentPreview(int RowNumber, string StudentNumber, string FirstName, string LastName, string SourceFileName);
-public sealed record OpticalRecordResponse(Guid Id, int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false);
+public sealed record OpticalRecordResponse(Guid Id, int LineNumber, string StudentNumber, string StudentName, string BookletType, string Answers, bool IsValid, string? ErrorMessage, bool IsAnswerKey = false, string ExamTypeValue = "");
 
 public interface IOpticalFileParser
 {
@@ -37,7 +39,7 @@ public interface IClassListParser
 
 public interface IStudentDataImportService
 {
-    Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, OpticalFormConfigurationInput configuration, CancellationToken cancellationToken);
+    Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, CancellationToken cancellationToken);
     Task<ImportPreviewResponse> ImportClassListAsync(Guid examId, IReadOnlyCollection<ClassListFileInput> classListFiles, CancellationToken cancellationToken);
     Task<bool?> RemoveAsync(Guid examId, string fileType, string? fileName, CancellationToken cancellationToken);
     Task<ImportPreviewResponse?> GetPreviewAsync(Guid examId, CancellationToken cancellationToken);

@@ -8,6 +8,7 @@ public sealed class ExamQuestion
     public int CanonicalQuestionNumber { get; set; }
     public decimal Points { get; set; }
     public ExamQuestionStatus Status { get; set; } = ExamQuestionStatus.Active;
+    public QuestionScoreSource Source { get; set; } = QuestionScoreSource.Optical;
     public ExamAnswerKey ExamAnswerKey { get; set; } = null!;
     public ICollection<BookletQuestion> BookletQuestions { get; set; } = new List<BookletQuestion>();
     public ICollection<QuestionLearningOutcome> LearningOutcomeLinks { get; set; } = new List<QuestionLearningOutcome>();
@@ -17,4 +18,10 @@ public enum ExamQuestionStatus
 {
     Active,
     Cancelled
+}
+
+public enum QuestionScoreSource
+{
+    Optical,
+    Manual
 }

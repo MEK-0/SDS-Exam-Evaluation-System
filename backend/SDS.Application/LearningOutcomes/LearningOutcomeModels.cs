@@ -38,6 +38,12 @@ public sealed class LearningOutcomeQuestionMapInput
     public List<int> QuestionNumbers { get; set; } = [];
 }
 
+public sealed class ReverseBookletMappingRequest
+{
+    [Required, StringLength(16, MinimumLength = 1)]
+    public string BookletCode { get; set; } = string.Empty;
+}
+
 public sealed class CompleteExamRequest
 {
     public SaveBookletQuestionMappingsRequest BookletMappings { get; set; } = new();
@@ -50,6 +56,7 @@ public interface ILearningOutcomeService
     Task<LearningOutcomeResponse?> CreateOutcomeAsync(Guid courseId, CreateLearningOutcomeRequest request, CancellationToken cancellationToken);
     Task<LearningOutcomePageResponse?> GetExamPageAsync(Guid examId, CancellationToken cancellationToken);
     Task<LearningOutcomePageResponse?> SaveBookletMappingsAsync(Guid examId, SaveBookletQuestionMappingsRequest request, CancellationToken cancellationToken);
+    Task<LearningOutcomePageResponse?> ApplyReverseMappingAsync(Guid examId, ReverseBookletMappingRequest request, CancellationToken cancellationToken);
     Task<LearningOutcomePageResponse?> SaveOutcomeMappingsAsync(Guid examId, SaveLearningOutcomeMappingsRequest request, CancellationToken cancellationToken);
     Task<LearningOutcomePageResponse?> CompleteExamAsync(Guid examId, CompleteExamRequest request, CancellationToken cancellationToken);
 }

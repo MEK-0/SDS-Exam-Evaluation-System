@@ -38,22 +38,48 @@ public sealed class TermAnalysisService(SdsDbContext dbContext, ICurrentUser cur
 
     private async Task<TermData?> LoadAsync(Guid courseId, CancellationToken cancellationToken)
     {
-        var user = currentUser.Get(); var canAccess = user.IsAdministrator || user.Id.HasValue && await dbContext.CourseInstructors.AnyAsync(item => item.CourseId == courseId && item.UserId == user.Id.Value, cancellationToken); if (!canAccess) return null;
-        var course = await dbContext.Courses.AsNoTracking().SingleOrDefaultAsync(item => item.Id == courseId, cancellationToken); if (course is null) return null;
-        var exams = await dbContext.Exams.AsNoTracking().Where(item => item.CourseId == courseId).OrderByDescending(item => item.CreatedAt).ToListAsync(cancellationToken); var selected = new Dictionary<ExamType, Exam>(); foreach (var exam in exams.Where(item => !selected.ContainsKey(item.ExamType))) selected[exam.ExamType] = exam;
-        var records = new Dictionary<ExamType, IReadOnlyCollection<TermRecord>>(); foreach (var pair in selected) { var students = await dbContext.ExamImports.AsNoTracking().Where(item => item.ExamId == pair.Value.Id).SelectMany(item => item.ImportedStudents).ToListAsync(cancellationToken); var results = await dbContext.ExamResults.AsNoTracking().Where(item => item.ExamId == pair.Value.Id).ToListAsync(cancellationToken); records[pair.Key] = students.Select(student => { var result = results.SingleOrDefault(item => item.ImportedStudentId == student.Id); var score = result?.Status == GradeStatus.Graded ? result.AdjustedScore ?? result.RawScore : null; return new TermRecord(student.StudentNumber, $"{student.FirstName} {student.LastName}".Trim(), score); }).ToList(); }
-        var policy = await dbContext.GradingPolicies.AsNoTracking().OrderByDescending(item => item.UpdatedAt).FirstOrDefaultAsync(cancellationToken); return new TermData(records, policy?.MidtermWeight ?? 40, policy?.FinalWeight ?? 60);
+        var user = currentUser.Get();
+        var canAccess = user.IsAdministrator || user.Id.HasValue && await dbContext.CourseInstructors
+            .AnyAsync(item => item.CourseId == courseId && item.UserId == user.Id.Value, cancellationToken);
+        if (!canAccess) return null;
+        var course = await dbContext.Courses.AsNoTracking().SingleOrDefaultAsync(item => item.Id == courseId, cancellationToken);
+        if (course is null) return null;
+        var exams = await dbContext.Exams.AsNoTracking()
+            .Where(item => item.CourseId == courseId && item.Status == ExamStatus.Completed)
+            .OrderByDescending(item => item.CreatedAt)
+            .ToListAsync(cancellationToken);
+        var selected = new Dictionary<ExamType, Exam>();
+        foreach (var exam in exams.Where(item => !selected.ContainsKey(item.ExamType))) selected[exam.ExamType] = exam;
+        if (!InfrastructureServiceSupport.IsTermEvaluationAvailable(selected.Keys.Select(type => (type, ExamStatus.Completed))))
+            throw new InvalidOperationException("Dönem değerlendirmesi için vize ile final ya da bütünleme sınavının tamamlanmış olması gerekir.");
+        var records = new Dictionary<ExamType, IReadOnlyCollection<TermRecord>>();
+        foreach (var pair in selected)
+        {
+            var students = await dbContext.ExamImports.AsNoTracking().Where(item => item.ExamId == pair.Value.Id).SelectMany(item => item.ImportedStudents).ToListAsync(cancellationToken);
+            var results = await dbContext.ExamResults.AsNoTracking().Where(item => item.ExamId == pair.Value.Id).ToListAsync(cancellationToken);
+            records[pair.Key] = students.Select(student =>
+            {
+                var result = results.SingleOrDefault(item => item.ImportedStudentId == student.Id);
+                var score = result?.Status == GradeStatus.Graded ? result.AdjustedScore ?? result.RawScore : null;
+                return new TermRecord(NormalizeNumber(student.StudentNumber), $"{student.FirstName} {student.LastName}".Trim(), score);
+            }).ToList();
+        }
+        var policy = await dbContext.GradingPolicies.AsNoTracking().OrderByDescending(item => item.UpdatedAt).FirstOrDefaultAsync(cancellationToken);
+        var thresholds = await InfrastructureServiceSupport.LoadThresholdsAsync(dbContext, cancellationToken);
+        return new TermData(records, policy?.MidtermWeight ?? 40, policy?.FinalWeight ?? 60, thresholds);
     }
+
+    private static string NormalizeNumber(string number) => number.Trim();
 
     private static TermAnalysisResponse Build(TermData data)
     {
-        var students = data.Records.Values.SelectMany(item => item).GroupBy(item => item.Number, StringComparer.Ordinal).Select(group => { var first = group.First(); var midterm = GetScore(data.Records, ExamType.Midterm, group.Key); var final = GetScore(data.Records, ExamType.Final, group.Key); var makeUp = GetScore(data.Records, ExamType.MakeUp, group.Key); var calculated = TermAnalysisCalculator.Calculate(midterm, final, makeUp, data.MidtermWeight, data.FinalWeight); return new TermStudentResponse(group.Key, first.Name, midterm, final, makeUp, calculated.Effective, calculated.Weighted, GradeLetterCalculator.Calculate(calculated.Weighted), calculated.Weighted.HasValue ? "Değerlendirildi" : "Eksik veri"); }).OrderBy(item => item.StudentNumber, StringComparer.Ordinal).ToList();
+        var students = data.Records.Values.SelectMany(item => item).GroupBy(item => item.Number, StringComparer.Ordinal).Select(group => { var first = group.First(); var midterm = GetScore(data.Records, ExamType.Midterm, group.Key); var final = GetScore(data.Records, ExamType.Final, group.Key); var makeUp = GetScore(data.Records, ExamType.MakeUp, group.Key); var calculated = TermAnalysisCalculator.Calculate(midterm, final, makeUp, data.MidtermWeight, data.FinalWeight); return new TermStudentResponse(group.Key, first.Name, midterm, final, makeUp, calculated.Effective, calculated.Weighted, GradeLetterCalculator.Calculate(calculated.Weighted, data.Thresholds), calculated.Weighted.HasValue ? "Değerlendirildi" : "Eksik veri"); }).OrderBy(item => item.StudentNumber, StringComparer.Ordinal).ToList();
         var valid = students.Where(item => item.WeightedScore.HasValue).ToList(); var summary = new TermAnalysisSummary(students.Count, valid.Count, valid.Count == 0 ? null : valid.Average(item => item.WeightedScore!.Value), valid.Count == 0 ? null : valid.Count(item => item.WeightedScore >= 50) * 100m / valid.Count, Average(students.Select(item => item.MidtermScore)), Average(students.Select(item => item.FinalScore)), Average(students.Select(item => item.MakeUpScore)), valid.Any(item => item.MakeUpScore.HasValue) ? "Bütünleme" : "Final", data.MidtermWeight, data.FinalWeight); var letters = students.Where(item => item.LetterGrade is not null).GroupBy(item => item.LetterGrade!).Select(item => new TermLetterResponse(item.Key, item.Count())).OrderBy(item => item.Letter).ToList(); return new TermAnalysisResponse(summary, students, letters, BuildDistribution(valid.Select(item => item.WeightedScore!.Value)));
     }
 
     private static decimal? GetScore(Dictionary<ExamType, IReadOnlyCollection<TermRecord>> records, ExamType type, string number) => records.TryGetValue(type, out var rows) ? rows.FirstOrDefault(item => item.Number == number)?.Score : null;
     private static decimal? Average(IEnumerable<decimal?> values) { var valid = values.Where(item => item.HasValue).Select(item => item!.Value).ToList(); return valid.Count == 0 ? null : decimal.Round(valid.Average(), 2); }
     private static IReadOnlyCollection<TermScoreDistributionResponse> BuildDistribution(IEnumerable<decimal> scores) { var values = scores.ToList(); var labels = new[] { "0–10", "10–20", "20–30", "30–40", "40–50", "50–60", "60–70", "70–80", "80–90", "90–100" }; return labels.Select((label, index) => new TermScoreDistributionResponse(label, values.Count(score => index == 9 ? score >= index * 10 && score <= 100 : score >= index * 10 && score < (index + 1) * 10))).ToList(); }
-    private sealed record TermData(Dictionary<ExamType, IReadOnlyCollection<TermRecord>> Records, decimal MidtermWeight, decimal FinalWeight);
+    private sealed record TermData(Dictionary<ExamType, IReadOnlyCollection<TermRecord>> Records, decimal MidtermWeight, decimal FinalWeight, GradeThresholds Thresholds);
     private sealed record TermRecord(string Number, string Name, decimal? Score);
 }

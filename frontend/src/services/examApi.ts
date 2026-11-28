@@ -1,10 +1,10 @@
 /* Sınav taslağı API çağrılarını sunar. */
 import { apiClient } from './apiClient';
-import type { ApiResponse, AnswerKey, Exam, EvaluationType, ExamType, ImportPreview, OpticalFormConfiguration, OpticalRecord, UpdateAnswerKeyInput, AnswerKeyBooklet, MatchingResponse, GradesResponse, ProjectGradeImportResponse, LearningOutcome, LearningOutcomePage, AnalysisResponse, OpenEndedSettings, OpenEndedGradeImportResponse, TermAnalysisResponse } from '../types/api';
+import type { ApiResponse, AnswerKey, Exam, EvaluationType, ExamType, ImportPreview, OpticalRecord, UpdateAnswerKeyInput, AnswerKeyBooklet, MatchingResponse, GradesResponse, ProjectGradeImportResponse, LearningOutcome, LearningOutcomePage, AnalysisResponse, OpenEndedSettings, OpenEndedGradeImportResponse, TermAnalysisResponse } from '../types/api';
 
 export async function getExams(courseId: string): Promise<Exam[]> { const response = await apiClient.get<ApiResponse<Exam[]>>(`/courses/${courseId}/exams`); return response.data.data ?? []; }
 export async function createExam(courseId: string, input: { examType: ExamType; evaluationType: EvaluationType }): Promise<Exam> { const response = await apiClient.post<ApiResponse<Exam>>(`/courses/${courseId}/exams`, input); if (!response.data.data) throw new Error(response.data.message ?? 'Sınav oluşturulamadı.'); return response.data.data; }
-export async function uploadExamFiles(examId: string, opticalFile: File, classListFiles: File[], configuration: OpticalFormConfiguration): Promise<ImportPreview> { const formData = new FormData(); formData.append('opticalFile', opticalFile); classListFiles.forEach(file => formData.append('classListFiles', file)); Object.entries(configuration).forEach(([key, value]) => { if (value !== null && value !== undefined) formData.append(key, String(value)); }); const response = await apiClient.post<ApiResponse<ImportPreview>>(`/exams/${examId}/files`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); if (!response.data.data) throw new Error(response.data.message ?? 'Dosyalar işlenemedi.'); return response.data.data; }
+export async function uploadExamFiles(examId: string, opticalFile: File, classListFiles: File[]): Promise<ImportPreview> { const formData = new FormData(); formData.append('opticalFile', opticalFile); classListFiles.forEach(file => formData.append('classListFiles', file)); const response = await apiClient.post<ApiResponse<ImportPreview>>(`/exams/${examId}/files`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); if (!response.data.data) throw new Error(response.data.message ?? 'Dosyalar işlenemedi.'); return response.data.data; }
 export async function removeImportFile(examId: string, fileType: 'optical' | 'classList', fileName?: string): Promise<void> { await apiClient.delete(`/exams/${examId}/files`, { params: { fileType, fileName } }); }
 export async function getImportPreview(examId: string): Promise<ImportPreview> { const response = await apiClient.get<ApiResponse<ImportPreview>>(`/exams/${examId}/import-preview`); if (!response.data.data) throw new Error(response.data.message ?? 'Import önizlemesi bulunamadı.'); return response.data.data; }
 export async function getAnswerKey(examId: string): Promise<AnswerKey> { const response = await apiClient.get<ApiResponse<AnswerKey>>(`/exams/${examId}/answer-key`); if (!response.data.data) throw new Error(response.data.message ?? 'Cevap anahtarı alınamadı.'); return response.data.data; }
@@ -38,3 +38,27 @@ export async function getOpenEndedSettings(examId: string): Promise<OpenEndedSet
 export async function saveOpenEndedSettings(examId: string, questionCount: number, maximumScore: number): Promise<OpenEndedSettings> { const response = await apiClient.put<ApiResponse<OpenEndedSettings>>(`/exams/${examId}/open-ended/settings`, { questionCount, maximumScore }); if (!response.data.data) throw new Error(response.data.message ?? 'Sınav ayarları kaydedilemedi.'); return response.data.data; }
 export async function saveOpenEndedGrade(examId: string, studentId: string, rawScore: number | null, isAbsent: boolean): Promise<GradesResponse> { const response = await apiClient.put<ApiResponse<GradesResponse>>(`/exams/${examId}/open-ended/grades/${studentId}`, { rawScore, isAbsent }); if (!response.data.data) throw new Error(response.data.message ?? 'Ham not kaydedilemedi.'); return response.data.data; }
 export async function importOpenEndedGrades(examId: string, file: File): Promise<OpenEndedGradeImportResponse> { const formData = new FormData(); formData.append('file', file); const response = await apiClient.post<ApiResponse<OpenEndedGradeImportResponse>>(`/exams/${examId}/open-ended/grades/import`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); if (!response.data.data) throw new Error(response.data.message ?? 'Açık uçlu notları işlenemedi.'); return response.data.data; }
+
+export async function getExam(examId: string): Promise<Exam> {
+  const response = await apiClient.get<ApiResponse<Exam>>(`/exams/${examId}`);
+  if (!response.data.data) throw new Error(response.data.message ?? 'Sınav bilgisi alınamadı.');
+  return response.data.data;
+}
+
+export async function acceptSuggestion(examId: string, importedStudentId: string, opticalExamRecordId: string): Promise<MatchingResponse> {
+  const response = await apiClient.put<ApiResponse<MatchingResponse>>(`/exams/${examId}/matching/suggestions/accept`, { importedStudentId, opticalExamRecordId });
+  if (!response.data.data) throw new Error(response.data.message ?? 'Öneri onaylanamadı.');
+  return response.data.data;
+}
+
+export async function acceptAbsentSuggestions(examId: string): Promise<MatchingResponse> {
+  const response = await apiClient.put<ApiResponse<MatchingResponse>>(`/exams/${examId}/matching/suggestions/accept-absent`);
+  if (!response.data.data) throw new Error(response.data.message ?? 'Girmedi önerileri onaylanamadı.');
+  return response.data.data;
+}
+
+export async function applyReverseBookletMapping(examId: string, bookletCode: string): Promise<LearningOutcomePage> {
+  const response = await apiClient.post<ApiResponse<LearningOutcomePage>>(`/exams/${examId}/question-mappings/reverse`, { bookletCode });
+  if (!response.data.data) throw new Error(response.data.message ?? 'Ters sıra eşleştirmesi uygulanamadı.');
+  return response.data.data;
+}

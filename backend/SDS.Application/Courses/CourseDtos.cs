@@ -18,5 +18,5 @@ public class CreateCourseRequest
 }
 
 public sealed class UpdateCourseRequest : CreateCourseRequest;
-public sealed record CourseResponse(Guid Id, string Code, string Name, Guid AcademicYearId, string AcademicYear, int InstructorCount, int ExamCount);
+public sealed record CourseResponse(Guid Id, string Code, string Name, Guid AcademicYearId, string AcademicYear, int InstructorCount, int ExamCount, bool TermEvaluationAvailable);
 public sealed record AssignInstructorRequest(Guid UserId);

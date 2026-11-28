@@ -28,7 +28,8 @@ public sealed class MultiClassListImportTests
         var user = new User { Id = Guid.NewGuid(), Username = "multi-import", DisplayName = "Instructor", Role = UserRole.Instructor, CreatedAt = DateTime.UtcNow };
         var year = new AcademicYear { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString(), IsActive = true };
         var course = new Course { Id = Guid.NewGuid(), Code = "MULTI", Name = "Ders", AcademicYearId = year.Id, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var exam = new Exam { Id = Guid.NewGuid(), CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow };
+        var opticalTemplateVersionId = TestOpticalTemplates.AddVersion(context, studentNumberLength: 8, bookletTypeStart: 8, answersStart: 9, answersLength: 4);
+        var exam = new Exam { Id = Guid.NewGuid(), OpticalTemplateVersionId = opticalTemplateVersionId, CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow };
         context.AddRange(user, year, course, exam);
         context.CourseInstructors.Add(new CourseInstructor { CourseId = course.Id, UserId = user.Id });
         await context.SaveChangesAsync();
@@ -48,7 +49,7 @@ public sealed class MultiClassListImportTests
         await using var optical = new MemoryStream(Encoding.UTF8.GetBytes("00123456AABCD\n"));
         await using var first = CreateWorkbook(("00123456", "Çağrı", "Öztürk"));
         await using var second = CreateWorkbook(("00123456", "Çağrı", "Öztürk"), ("00123457", "Ayşe", "Yılmaz"));
-        return await service.ImportAsync(examId, optical, "optik.txt", [new ClassListFileInput(first, "Sinif_Listesi_A.xlsx"), new ClassListFileInput(second, "Sinif_Listesi_B.xlsx")], new OpticalFormConfigurationInput(0, 8, null, null, 8, 1, null, null, 9, 4, "utf-8"), default);
+        return await service.ImportAsync(examId, optical, "optik.txt", [new ClassListFileInput(first, "Sinif_Listesi_A.xlsx"), new ClassListFileInput(second, "Sinif_Listesi_B.xlsx")], default);
     }
 
     private static SdsDbContext CreateContext(SqliteConnection connection) => new(new DbContextOptionsBuilder<SdsDbContext>().UseSqlite(connection).Options);

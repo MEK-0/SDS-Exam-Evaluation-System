@@ -1,6 +1,7 @@
 // Optik ve sınıf listesi dosyalarını doğrulayıp sınav import kayıtlarına dönüştürür.
 using Microsoft.EntityFrameworkCore;
 using SDS.Application.Imports;
+using SDS.Application.OpticalTemplates;
 using SDS.Application.Security;
 using SDS.Domain.Entities;
 using SDS.Infrastructure.Persistence;
@@ -9,11 +10,12 @@ namespace SDS.Infrastructure.Services;
 
 public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUser currentUser, IOpticalFileParser opticalFileParser, IClassListParser classListParser) : IStudentDataImportService
 {
-    public async Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, OpticalFormConfigurationInput configuration, CancellationToken cancellationToken)
+    public async Task<ImportPreviewResponse> ImportAsync(Guid examId, Stream opticalFile, string opticalFileName, IReadOnlyCollection<ClassListFileInput> classListFiles, CancellationToken cancellationToken)
     {
-        var exam = await dbContext.Exams.SingleOrDefaultAsync(item => item.Id == examId, cancellationToken);
+        var exam = await dbContext.Exams.Include(item => item.OpticalTemplateVersion).SingleOrDefaultAsync(item => item.Id == examId, cancellationToken);
         if (exam is null || !await CanAccessCourseAsync(exam.CourseId, cancellationToken)) throw new KeyNotFoundException("Sınav bulunamadı veya erişim yetkiniz yok.");
         if (exam.EvaluationType != EvaluationType.MultipleChoice) throw new InvalidOperationException("Optik dosyası yalnızca çoktan seçmeli sınavlarda kullanılabilir.");
+        var configuration = CreateConfiguration(exam.OpticalTemplateVersion);
         var opticalResult = await opticalFileParser.ParseAsync(opticalFile, configuration, cancellationToken);
         var classListResults = new List<(ClassListFileInput File, ClassListParseResult Result)>();
         foreach (var classListFile in classListFiles)
@@ -33,6 +35,7 @@ public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUse
         classListStudents = classListStudents.GroupBy(item => item.StudentNumber, StringComparer.Ordinal).Select(group => group.First()).ToList();
         var classNumbers = classListStudents.Select(item => item.StudentNumber).ToHashSet(StringComparer.Ordinal);
         issues.AddRange(opticalResult.Records.Where(item => item.IsValid && !item.IsAnswerKey && !classNumbers.Contains(item.StudentNumber)).Select(item => new ImportIssue("matching", item.LineNumber, "Optik kaydındaki öğrenci numarası sınıf listesinde bulunamadı.")));
+        issues.AddRange(CreateExamTypeWarnings(opticalResult.Records, exam));
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var previousImport = await dbContext.ExamImports.SingleOrDefaultAsync(item => item.ExamId == examId, cancellationToken);
         dbContext.StudentMatches.RemoveRange(dbContext.StudentMatches.Where(item => item.ExamId == examId));
@@ -56,12 +59,9 @@ public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUse
             InvalidOpticalRecordCount = opticalResult.Records.Count(item => !item.IsValid)
         };
         import.ImportedStudents = classListStudents.Select(item => new ImportedStudent { Id = Guid.NewGuid(), ExamImportId = import.Id, StudentNumber = item.StudentNumber, FirstName = item.FirstName, LastName = item.LastName, SourceFileName = item.SourceFileName, RowNumber = item.RowNumber }).ToList();
-        import.OpticalExamRecords = opticalResult.Records.Select(item => new OpticalExamRecord { Id = Guid.NewGuid(), ExamImportId = import.Id, LineNumber = item.LineNumber, StudentNumber = item.StudentNumber, StudentName = item.StudentName, BookletType = item.BookletType, Answers = item.Answers, IsValid = item.IsValid, IsAnswerKey = item.IsAnswerKey, ErrorMessage = item.ErrorMessage }).ToList();
+        import.OpticalExamRecords = opticalResult.Records.Select(item => new OpticalExamRecord { Id = Guid.NewGuid(), ExamImportId = import.Id, LineNumber = item.LineNumber, StudentNumber = item.StudentNumber, StudentName = item.StudentName, BookletType = item.BookletType, Answers = item.Answers, IsValid = item.IsValid, IsAnswerKey = item.IsAnswerKey, ExamTypeValue = item.ExamTypeValue, ErrorMessage = item.ErrorMessage }).ToList();
         import.ValidationIssues = issues.Select(item => new ImportValidationIssue { Id = Guid.NewGuid(), ExamImportId = import.Id, Source = item.Source, RowNumber = item.RowNumber, Message = item.Message }).ToList();
         dbContext.ExamImports.Add(import);
-        var formConfiguration = await dbContext.OpticalFormConfigurations.SingleOrDefaultAsync(item => item.ExamId == examId, cancellationToken);
-        if (formConfiguration is null) dbContext.OpticalFormConfigurations.Add(CreateConfiguration(examId, configuration));
-        else UpdateConfiguration(formConfiguration, configuration);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResponse(import, opticalResult.Records, classListStudents, issues);
@@ -141,7 +141,7 @@ public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUse
     public async Task<IReadOnlyCollection<ImportIssue>?> GetIssuesAsync(Guid examId, CancellationToken cancellationToken)
     {
         var import = await GetAccessibleImportAsync(examId, cancellationToken);
-        return import?.ValidationIssues.Select(item => new ImportIssue(item.Source, item.RowNumber, item.Message)).ToList();
+        return import?.ValidationIssues.Where(item => item.Source != ExamTypeWarningSource).Select(item => new ImportIssue(item.Source, item.RowNumber, item.Message)).ToList();
     }
 
     public async Task<IReadOnlyCollection<OpticalRecordResponse>?> GetOpticalRecordsAsync(Guid examId, CancellationToken cancellationToken)
@@ -154,7 +154,7 @@ public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUse
                 ? importedStudent is null ? string.Empty : $"{importedStudent.FirstName} {importedStudent.LastName}".Trim()
                 : item.StudentName;
 
-            return new OpticalRecordResponse(item.Id, item.LineNumber, item.StudentNumber, studentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey);
+            return new OpticalRecordResponse(item.Id, item.LineNumber, item.StudentNumber, studentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey, item.ExamTypeValue);
         }).ToList();
     }
 
@@ -171,9 +171,41 @@ public sealed class StudentDataImportService(SdsDbContext dbContext, ICurrentUse
         return user.IsAdministrator || user.Id.HasValue && await dbContext.CourseInstructors.AnyAsync(item => item.CourseId == courseId && item.UserId == user.Id.Value, cancellationToken);
     }
 
-    private static OpticalFormConfiguration CreateConfiguration(Guid examId, OpticalFormConfigurationInput input) => new() { Id = Guid.NewGuid(), ExamId = examId, StudentNumberStart = input.StudentNumberStart, StudentNumberLength = input.StudentNumberLength, StudentNameStart = input.StudentNameStart, StudentNameLength = input.StudentNameLength, BookletTypeStart = input.BookletTypeStart, BookletTypeLength = input.BookletTypeLength, ExamTypeStart = input.ExamTypeStart, ExamTypeLength = input.ExamTypeLength, AnswersStart = input.AnswersStart, AnswersLength = input.AnswersLength, EncodingName = input.EncodingName };
-    private static void UpdateConfiguration(OpticalFormConfiguration target, OpticalFormConfigurationInput input) { target.StudentNumberStart = input.StudentNumberStart; target.StudentNumberLength = input.StudentNumberLength; target.StudentNameStart = input.StudentNameStart; target.StudentNameLength = input.StudentNameLength; target.BookletTypeStart = input.BookletTypeStart; target.BookletTypeLength = input.BookletTypeLength; target.ExamTypeStart = input.ExamTypeStart; target.ExamTypeLength = input.ExamTypeLength; target.AnswersStart = input.AnswersStart; target.AnswersLength = input.AnswersLength; target.EncodingName = input.EncodingName; }
+    private static OpticalFormConfigurationInput CreateConfiguration(OpticalTemplateVersion version)
+    {
+        return new OpticalFormConfigurationInput(
+            version.StudentNumberStart,
+            version.StudentNumberLength,
+            version.StudentNameStart,
+            version.StudentNameLength,
+            version.BookletTypeStart,
+            version.BookletTypeLength,
+            version.ExamTypeStart,
+            version.ExamTypeLength,
+            version.AnswersStart,
+            version.AnswersLength,
+            OpticalEncodingNames.ToParserEncodingName(version.EncodingMode),
+            version.BlankMarkChar,
+            version.DoubleMarkChar);
+    }
+
+    private const string ExamTypeWarningSource = "examType";
+
+    private static IEnumerable<ImportIssue> CreateExamTypeWarnings(IReadOnlyCollection<ParsedOpticalRecord> records, Exam exam)
+    {
+        if (!exam.OpticalTemplateVersion.ExamTypeStart.HasValue) return [];
+        var expectedValue = ExamTypeCodes.GetCode(exam.ExamType);
+        var mismatched = records
+            .Where(item => item.IsValid && !item.IsAnswerKey && !string.Equals(item.ExamTypeValue, expectedValue, StringComparison.Ordinal))
+            .ToList();
+        if (mismatched.Count == 0) return [];
+        var examTypeName = ExamTypeCodes.GetDisplayName(exam.ExamType);
+        var foundValues = string.Join(", ", mismatched.Select(item => string.IsNullOrEmpty(item.ExamTypeValue) ? "boş" : $"\"{item.ExamTypeValue}\"").Distinct());
+        var message = $"{mismatched.Count} optik satırında sınav türü alanı ({foundValues}) seçilen sınav türüyle ({examTypeName}, beklenen \"{expectedValue}\") uyuşmuyor. Dosyanın doğru sınava ait olduğunu kontrol edin.";
+        return [new ImportIssue(ExamTypeWarningSource, mismatched[0].LineNumber, message)];
+    }
+
     private static string SafeFileName(string fileName) => Path.GetFileName(fileName);
-    private static ParsedOpticalRecord ToParsedRecord(OpticalExamRecord item) => new(item.LineNumber, item.StudentNumber, item.StudentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey);
-    private static ImportPreviewResponse ToResponse(ExamImport import, IReadOnlyCollection<ParsedOpticalRecord> records, IReadOnlyCollection<ParsedStudent> students, IReadOnlyCollection<ImportIssue> issues) => new(import.Id, import.OpticalFileName, import.ClassListFileName, import.ClassListFileName.Split(", ", StringSplitOptions.RemoveEmptyEntries), import.TotalOpticalRecordCount, import.ValidOpticalRecordCount, import.InvalidOpticalRecordCount, students.Count, records.Take(10).Select(item => new OpticalRecordPreview(item.LineNumber, item.StudentNumber, item.StudentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey)).ToList(), students.Take(10).Select(item => new StudentPreview(item.RowNumber, item.StudentNumber, item.FirstName, item.LastName, item.SourceFileName)).ToList(), issues, import.CreatedAt);
+    private static ParsedOpticalRecord ToParsedRecord(OpticalExamRecord item) => new(item.LineNumber, item.StudentNumber, item.StudentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey, item.ExamTypeValue);
+    private static ImportPreviewResponse ToResponse(ExamImport import, IReadOnlyCollection<ParsedOpticalRecord> records, IReadOnlyCollection<ParsedStudent> students, IReadOnlyCollection<ImportIssue> issues) => new(import.Id, import.OpticalFileName, import.ClassListFileName, import.ClassListFileName.Split(", ", StringSplitOptions.RemoveEmptyEntries), import.TotalOpticalRecordCount, import.ValidOpticalRecordCount, import.InvalidOpticalRecordCount, students.Count, records.Take(10).Select(item => new OpticalRecordPreview(item.LineNumber, item.StudentNumber, item.StudentName, item.BookletType, item.Answers, item.IsValid, item.ErrorMessage, item.IsAnswerKey, item.ExamTypeValue)).ToList(), students.Take(10).Select(item => new StudentPreview(item.RowNumber, item.StudentNumber, item.FirstName, item.LastName, item.SourceFileName)).ToList(), issues.Where(item => item.Source != ExamTypeWarningSource).ToList(), import.CreatedAt, issues.Where(item => item.Source == ExamTypeWarningSource).ToList());
 }
