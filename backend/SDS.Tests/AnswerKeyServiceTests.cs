@@ -138,7 +138,8 @@ public sealed class AnswerKeyServiceTests
         await context.Database.EnsureCreatedAsync();
         var user = new User { Id = Guid.NewGuid(), Username = "instructor", DisplayName = "Instructor", Role = role, CreatedAt = DateTime.UtcNow };
         var course = new Course { Id = Guid.NewGuid(), Code = "BM201", Name = "Veri Yapıları", AcademicYearId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, AcademicYear = new AcademicYear { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString(), IsActive = true } };
-        var exam = new Exam { Id = Guid.NewGuid(), CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow, Course = course };
+        var opticalTemplateVersionId = TestOpticalTemplates.AddVersion(context);
+        var exam = new Exam { Id = Guid.NewGuid(), OpticalTemplateVersionId = opticalTemplateVersionId, CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow, Course = course };
         context.Users.Add(user);
         context.Courses.Add(course);
         context.Exams.Add(exam);

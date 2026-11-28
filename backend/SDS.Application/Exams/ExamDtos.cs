@@ -11,6 +11,8 @@ public sealed class CreateExamRequest
 
     [Required]
     public EvaluationType EvaluationType { get; set; }
+
+    public Guid? OpticalTemplateId { get; set; }
 }
 
-public sealed record ExamResponse(Guid Id, Guid CourseId, ExamType ExamType, EvaluationType EvaluationType, ExamStatus Status, DateTime CreatedAt);
+public sealed record ExamResponse(Guid Id, Guid CourseId, ExamType ExamType, EvaluationType EvaluationType, ExamStatus Status, DateTime CreatedAt, Guid OpticalTemplateId, string OpticalTemplateName, Guid OpticalTemplateVersionId, int OpticalTemplateVersionNo);

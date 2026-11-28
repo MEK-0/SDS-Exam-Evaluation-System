@@ -173,7 +173,8 @@ public sealed class StudentMatchingServiceTests
         var user = new User { Id = userId ?? Guid.NewGuid(), Username = Guid.NewGuid().ToString(), DisplayName = "Instructor", Role = UserRole.Instructor, CreatedAt = DateTime.UtcNow };
         var year = new AcademicYear { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString(), IsActive = true };
         var course = new Course { Id = Guid.NewGuid(), Code = Guid.NewGuid().ToString()[..8], Name = "Ders", AcademicYearId = year.Id, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var exam = new Exam { Id = Guid.NewGuid(), CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow };
+        var opticalTemplateVersionId = TestOpticalTemplates.AddVersion(context);
+        var exam = new Exam { Id = Guid.NewGuid(), OpticalTemplateVersionId = opticalTemplateVersionId, CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, CreatedAt = DateTime.UtcNow };
         var import = new ExamImport { Id = Guid.NewGuid(), ExamId = exam.Id, OpticalFileName = "optik.txt", ClassListFileName = "liste.xlsx", CreatedAt = DateTime.UtcNow };
         import.ImportedStudents = students.Select((item, index) => new ImportedStudent { Id = Guid.NewGuid(), ExamImportId = import.Id, StudentNumber = item.Number, FirstName = item.FirstName, LastName = item.LastName, RowNumber = index + 2 }).ToList();
         import.OpticalExamRecords = opticalRecords.Select((item, index) => new OpticalExamRecord { Id = Guid.NewGuid(), ExamImportId = import.Id, LineNumber = index + 1, StudentNumber = item.Number, BookletType = item.Booklet, Answers = "ABCD", IsValid = item.IsValid }).ToList();

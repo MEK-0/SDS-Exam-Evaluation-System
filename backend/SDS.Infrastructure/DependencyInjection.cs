@@ -15,6 +15,7 @@ using SDS.Application.Analysis;
 using SDS.Application.OpenEnded;
 using SDS.Application.TermAnalysis;
 using SDS.Application.Admin;
+using SDS.Application.OpticalTemplates;
 using SDS.Infrastructure.Importing;
 using SDS.Infrastructure.Seeding;
 using SDS.Infrastructure.Services;
@@ -41,6 +42,9 @@ public static class DependencyInjection
         services.AddScoped<IOpenEndedService, OpenEndedService>();
         services.AddScoped<ITermAnalysisService, TermAnalysisService>();
         services.AddScoped<IAdminService, AdminService>();
+        services.AddScoped<IOpticalTemplateService, OpticalTemplateService>();
+        services.AddScoped<OpticalTemplateSeeder>();
+        services.AddScoped<DatabaseInitializer>();
         services.AddScoped<DevelopmentSeeder>();
         return services;
     }

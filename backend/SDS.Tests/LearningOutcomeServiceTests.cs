@@ -45,7 +45,8 @@ public sealed class LearningOutcomeServiceTests
         var user = new User { Id = Guid.NewGuid(), Username = Guid.NewGuid().ToString(), DisplayName = "Eğitmen", Role = UserRole.Instructor, CreatedAt = DateTime.UtcNow };
         var year = new AcademicYear { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString(), IsActive = true };
         var course = new Course { Id = Guid.NewGuid(), Code = Guid.NewGuid().ToString(), Name = "Ders", AcademicYearId = year.Id, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-        var exam = new Exam { Id = Guid.NewGuid(), CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, MatchingConfirmed = true, CreatedAt = DateTime.UtcNow };
+        var opticalTemplateVersionId = TestOpticalTemplates.AddVersion(context);
+        var exam = new Exam { Id = Guid.NewGuid(), OpticalTemplateVersionId = opticalTemplateVersionId, CourseId = course.Id, ExamType = ExamType.Midterm, EvaluationType = EvaluationType.MultipleChoice, MatchingConfirmed = true, CreatedAt = DateTime.UtcNow };
         var import = new ExamImport { Id = Guid.NewGuid(), ExamId = exam.Id, OpticalFileName = "optik.txt", ClassListFileName = "sinif.xlsx", CreatedAt = DateTime.UtcNow };
         var student = new ImportedStudent { Id = Guid.NewGuid(), ExamImportId = import.Id, StudentNumber = "001", FirstName = "Ali", LastName = "Yılmaz", SourceFileName = "sinif.xlsx", RowNumber = 2 };
         var key = new ExamAnswerKey { Id = Guid.NewGuid(), ExamId = exam.Id, MaximumScore = 100, QuestionCount = 2, Status = AnswerKeyStatus.Validated, UpdatedAt = DateTime.UtcNow };

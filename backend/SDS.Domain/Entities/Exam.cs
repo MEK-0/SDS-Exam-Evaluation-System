@@ -5,6 +5,7 @@ public sealed class Exam
 {
     public Guid Id { get; set; }
     public Guid CourseId { get; set; }
+    public Guid OpticalTemplateVersionId { get; set; }
     public ExamType ExamType { get; set; }
     public EvaluationType EvaluationType { get; set; }
     public ExamStatus Status { get; set; } = ExamStatus.Draft;
@@ -13,7 +14,7 @@ public sealed class Exam
     public bool MatchingConfirmed { get; set; }
     public DateTime? MatchingUpdatedAt { get; set; }
     public Course Course { get; set; } = null!;
-    public OpticalFormConfiguration? OpticalFormConfiguration { get; set; }
+    public OpticalTemplateVersion OpticalTemplateVersion { get; set; } = null!;
     public ICollection<ExamImport> Imports { get; set; } = new List<ExamImport>();
     public ExamAnswerKey? AnswerKey { get; set; }
     public ICollection<QuestionLearningOutcome> QuestionLearningOutcomes { get; set; } = new List<QuestionLearningOutcome>();

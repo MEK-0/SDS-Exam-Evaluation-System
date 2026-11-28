@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SDS.Application.Admin;
+using SDS.Application.OpticalTemplates;
 using SDS.Application.Security;
 using SDS.Domain.Entities;
 using SDS.Infrastructure.Persistence;
@@ -145,17 +146,51 @@ public sealed class AdminService(SdsDbContext dbContext, ICurrentUser currentUse
     public async Task<OpticalSystemSettingsResponse> GetOpticalSettingsAsync(CancellationToken cancellationToken)
     {
         await EnsureAdministratorAsync(cancellationToken);
-        return ToOpticalResponse(await GetOrCreateOpticalSettingsAsync(cancellationToken));
+        var template = await GetDefaultOpticalTemplateAsync(cancellationToken);
+        return ToOpticalResponse(template.Id, template.Versions.OrderByDescending(item => item.VersionNo).First());
     }
 
     public async Task<OpticalSystemSettingsResponse> UpdateOpticalSettingsAsync(UpdateOpticalSystemSettingsRequest request, CancellationToken cancellationToken)
     {
-        var actor = await EnsureAdministratorAsync(cancellationToken);
-        ValidateOpticalSettings(request);
-        var settings = await GetOrCreateOpticalSettingsAsync(cancellationToken);
-        settings.StudentNumberStart = request.StudentNumberStart; settings.StudentNumberLength = request.StudentNumberLength; settings.StudentNameStart = request.StudentNameStart; settings.StudentNameLength = request.StudentNameLength; settings.BookletTypeStart = request.BookletTypeStart; settings.BookletTypeLength = request.BookletTypeLength; settings.ExamTypeStart = request.ExamTypeStart; settings.ExamTypeLength = request.ExamTypeLength; settings.AnswersStart = request.AnswersStart; settings.AnswersLength = request.AnswersLength; settings.EncodingName = request.EncodingName.Trim(); settings.UpdatedAt = DateTime.UtcNow; settings.UpdatedByUserId = actor.Id;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return ToOpticalResponse(settings);
+        await EnsureAdministratorAsync(cancellationToken);
+        var encodingMode = OpticalEncodingNames.Parse(request.EncodingName);
+        var template = await GetDefaultOpticalTemplateAsync(cancellationToken);
+        var current = template.Versions.OrderByDescending(item => item.VersionNo).First();
+        var saveRequest = new SaveOpticalTemplateRequest
+        {
+            Name = template.Name,
+            StudentNumberStart = request.StudentNumberStart,
+            StudentNumberLength = request.StudentNumberLength,
+            StudentNameStart = request.StudentNameStart,
+            StudentNameLength = request.StudentNameLength,
+            BookletTypeStart = request.BookletTypeStart,
+            BookletTypeLength = request.BookletTypeLength,
+            ExamTypeStart = request.ExamTypeStart,
+            ExamTypeLength = request.ExamTypeLength,
+            AnswersStart = request.AnswersStart,
+            AnswersLength = request.AnswersLength,
+            BlankMarkChar = current.BlankMarkChar,
+            DoubleMarkChar = current.DoubleMarkChar,
+            EncodingMode = encodingMode
+        };
+        var templateService = new OpticalTemplateService(dbContext, currentUser);
+        var updated = await templateService.UpdateAsync(template.Id, saveRequest, cancellationToken)
+            ?? throw new InvalidOperationException("Varsayılan optik şablon bulunamadı.");
+        var version = updated.CurrentVersion;
+        return new OpticalSystemSettingsResponse(
+            updated.Id,
+            version.StudentNumberStart,
+            version.StudentNumberLength,
+            version.StudentNameStart,
+            version.StudentNameLength,
+            version.BookletTypeStart,
+            version.BookletTypeLength,
+            version.ExamTypeStart,
+            version.ExamTypeLength,
+            version.AnswersStart,
+            version.AnswersLength,
+            OpticalEncodingNames.ToName(version.EncodingMode),
+            version.CreatedAt);
     }
 
     public async Task<bool> CreatePasswordResetRequestAsync(string username, CancellationToken cancellationToken)
@@ -186,14 +221,13 @@ public sealed class AdminService(SdsDbContext dbContext, ICurrentUser currentUse
         return policy;
     }
 
-    private async Task<OpticalSystemSettings> GetOrCreateOpticalSettingsAsync(CancellationToken cancellationToken)
+    private async Task<OpticalTemplate> GetDefaultOpticalTemplateAsync(CancellationToken cancellationToken)
     {
-        var settings = await dbContext.OpticalSystemSettings.SingleOrDefaultAsync(cancellationToken);
-        if (settings is not null) return settings;
-        settings = new OpticalSystemSettings { Id = Guid.NewGuid(), StudentNumberStart = 0, StudentNumberLength = 9, BookletTypeStart = 9, BookletTypeLength = 1, AnswersStart = 10, AnswersLength = 25, UpdatedAt = DateTime.UtcNow };
-        dbContext.OpticalSystemSettings.Add(settings);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return settings;
+        return await dbContext.OpticalTemplates
+            .AsNoTracking()
+            .Include(item => item.Versions)
+            .SingleOrDefaultAsync(item => item.IsDefault, cancellationToken)
+            ?? throw new InvalidOperationException("Varsayılan optik şablon tanımlı değil. Önce bir optik şablonu varsayılan yapın.");
     }
 
     private static void ValidatePolicy(UpdateGradingPolicyRequest request)
@@ -202,17 +236,10 @@ public sealed class AdminService(SdsDbContext dbContext, ICurrentUser currentUse
         if (request.MidtermWeight + request.FinalWeight != 100 || request.MakeUpWeight != request.FinalWeight) throw new ArgumentException("Vize ve final ağırlıkları toplamı 100 olmalı, bütünleme final ağırlığına eşit olmalıdır.");
     }
 
-    private static void ValidateOpticalSettings(UpdateOpticalSystemSettingsRequest request)
-    {
-        if ((request.StudentNameStart.HasValue != request.StudentNameLength.HasValue) || (request.ExamTypeStart.HasValue != request.ExamTypeLength.HasValue)) throw new ArgumentException("İsteğe bağlı optik alanların başlangıç ve uzunluk değerleri birlikte girilmelidir.");
-        if (request.BookletTypeStart < request.StudentNumberStart + request.StudentNumberLength && request.BookletTypeStart + request.BookletTypeLength > request.StudentNumberStart) throw new ArgumentException("Optik alanlar çakışamaz.");
-        if (!System.Text.Encoding.GetEncodings().Any(item => item.Name.Equals(request.EncodingName.Trim(), StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("Geçersiz dosya encoding değeri.");
-    }
-
     private static string CreateTemporaryPassword() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(18)).Replace("+", "A").Replace("/", "b").Replace("=", "9");
     private static ManagedUserResponse ToUserResponse(User user) => new(user.Id, user.Username, user.DisplayName, user.PersonnelNumber, user.Role.ToString(), user.IsActive, user.MustChangePassword);
     private static PasswordResetRequestResponse ToResetResponse(PasswordResetRequest item) => new(item.Id, item.UserId, item.User.DisplayName, item.User.Username, item.Status.ToString(), item.RequestedAt, item.ProcessedAt);
     private static GradingPolicyResponse ToPolicyResponse(GradingPolicy item) => new(item.Id, item.AaMinimum, item.BaMinimum, item.BbMinimum, item.CbMinimum, item.CcMinimum, item.DcMinimum, item.MidtermWeight, item.FinalWeight, item.MakeUpWeight, item.UpdatedAt);
-    private static OpticalSystemSettingsResponse ToOpticalResponse(OpticalSystemSettings item) => new(item.Id, item.StudentNumberStart, item.StudentNumberLength, item.StudentNameStart, item.StudentNameLength, item.BookletTypeStart, item.BookletTypeLength, item.ExamTypeStart, item.ExamTypeLength, item.AnswersStart, item.AnswersLength, item.EncodingName, item.UpdatedAt);
+    private static OpticalSystemSettingsResponse ToOpticalResponse(Guid templateId, OpticalTemplateVersion item) => new(templateId, item.StudentNumberStart, item.StudentNumberLength, item.StudentNameStart, item.StudentNameLength, item.BookletTypeStart, item.BookletTypeLength, item.ExamTypeStart, item.ExamTypeLength, item.AnswersStart, item.AnswersLength, OpticalEncodingNames.ToName(item.EncodingMode), item.CreatedAt);
     private static System.Linq.Expressions.Expression<Func<User, ManagedUserResponse>> ToUserResponseExpression() => item => new ManagedUserResponse(item.Id, item.Username, item.DisplayName, item.PersonnelNumber, item.Role.ToString(), item.IsActive, item.MustChangePassword);
 }
