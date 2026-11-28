@@ -3,14 +3,11 @@ namespace SDS.Application.Grades;
 
 public sealed record GradeThresholds(decimal Aa, decimal Ba, decimal Bb, decimal Cb, decimal Cc, decimal Dc)
 {
-    public static GradeThresholds LegacyDefault { get; } = new(88, 80, 73, 66, 60, 50);
     public static GradeThresholds SeedDefault { get; } = new(90, 85, 80, 70, 60, 50);
 }
 
 public static class GradeLetterCalculator
 {
-    public static string? Calculate(decimal? score) => Calculate(score, GradeThresholds.LegacyDefault);
-
     public static string? Calculate(decimal? score, GradeThresholds thresholds)
     {
         if (!score.HasValue) return null;
