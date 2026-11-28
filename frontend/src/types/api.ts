@@ -15,8 +15,7 @@ export interface Course { id: string; code: string; name: string; academicYearId
 export interface AcademicYear { id: string; name: string; isActive: boolean; }
 export type ExamType = 'Midterm' | 'Final' | 'MakeUp';
 export type EvaluationType = 'MultipleChoice' | 'OpenEnded';
-export interface Exam { id: string; courseId: string; examType: ExamType; evaluationType: EvaluationType; status: 'Draft' | 'Completed'; createdAt: string; }
-export interface OpticalFormConfiguration { studentNumberStart: number; studentNumberLength: number; studentNameStart: number | null; studentNameLength: number | null; bookletTypeStart: number; bookletTypeLength: number; examTypeStart: number | null; examTypeLength: number | null; answersStart: number; answersLength: number; encodingName: string; }
+export interface Exam { id: string; courseId: string; examType: ExamType; evaluationType: EvaluationType; status: 'Draft' | 'Completed'; createdAt: string; opticalTemplateId: string; opticalTemplateName: string; opticalTemplateVersionId: string; opticalTemplateVersionNo: number; }
 export interface OpticalRecordPreview { lineNumber: number; studentNumber: string; studentName: string; bookletType: string; answers: string; isValid: boolean; errorMessage: string | null; isAnswerKey: boolean; }
 export interface StudentPreview { rowNumber: number; studentNumber: string; firstName: string; lastName: string; sourceFileName: string; }
 export interface ImportIssue { source: string; rowNumber: number | null; message: string; }
@@ -64,3 +63,24 @@ export interface OpenEndedSettings { examId: string; questionCount: number; maxi
 export interface TermAnalysisSummary { totalStudents: number; participatingStudents: number; weightedAverage: number | null; successRate: number | null; midtermAverage: number | null; finalAverage: number | null; makeUpAverage: number | null; effectiveExamLabel: string; midtermWeight: number; finalWeight: number; }
 export interface TermStudent { studentNumber: string; studentName: string; midtermScore: number | null; finalScore: number | null; makeUpScore: number | null; effectiveExamScore: number | null; weightedScore: number | null; letterGrade: string | null; status: string; }
 export interface TermAnalysisResponse { summary: TermAnalysisSummary; students: TermStudent[]; letterDistribution: Array<{ letter: string; count: number }>; scoreDistribution: ScoreDistribution[]; }
+
+export type OpticalEncodingMode = 'Auto' | 'Utf8' | 'Windows1254';
+export interface OpticalTemplateVersion {
+  id: string;
+  versionNo: number;
+  studentNumberStart: number;
+  studentNumberLength: number;
+  studentNameStart: number | null;
+  studentNameLength: number | null;
+  bookletTypeStart: number;
+  bookletTypeLength: number;
+  examTypeStart: number | null;
+  examTypeLength: number | null;
+  answersStart: number;
+  answersLength: number;
+  blankMarkChar: string;
+  doubleMarkChar: string;
+  encodingMode: OpticalEncodingMode;
+  createdAt: string;
+}
+export interface OpticalTemplate { id: string; name: string; isDefault: boolean; versionCount: number; currentVersion: OpticalTemplateVersion; createdAt: string; }
