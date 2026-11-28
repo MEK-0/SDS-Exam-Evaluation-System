@@ -1,0 +1,58 @@
+{
+  "aciklama": "Optik form şablonları (veri). Alan adları OpticalSystemSettings / OpticalFormConfigurationInput ile aynıdır; başlangıçlar 0 tabanlıdır. Bugün sistemde çoklu şablon tablosu yoktur ve import, istemcinin gönderdiği sabit varsayılanı kullanır; bu dosya T-turunda şablon tablosuna seed verisi olarak taşınacaktır.",
+  "sablonlar": [
+    {
+      "ad": "SDS varsayılan (sentetik synthetic-exam-25)",
+      "kaynak": "frontend/src/features/exams/NewExamPage.tsx defaultConfiguration ve DevelopmentSeeder",
+      "satirUzunlugu": 35,
+      "studentNumberStart": 0,
+      "studentNumberLength": 9,
+      "studentNameStart": null,
+      "studentNameLength": null,
+      "bookletTypeStart": 9,
+      "bookletTypeLength": 1,
+      "examTypeStart": null,
+      "examTypeLength": null,
+      "answersStart": 10,
+      "answersLength": 25,
+      "encodingName": "utf-8",
+      "cevapAnahtariSatiri": "ANSWER_KEY_A|... / ANSWER_KEY_B|... (25 soru sabit)"
+    },
+    {
+      "ad": "Örnek dosya düzeni (ornek_optik_cikti.txt)",
+      "kaynak": "Kullanıcının bildirdiği 1 tabanlı düzen: no 1-9, sınav türü 19, kitapçık 21, ad soyad 22-41, cevaplar 43-67",
+      "satirUzunlugu": 67,
+      "studentNumberStart": 0,
+      "studentNumberLength": 9,
+      "studentNameStart": 21,
+      "studentNameLength": 20,
+      "bookletTypeStart": 20,
+      "bookletTypeLength": 1,
+      "examTypeStart": 18,
+      "examTypeLength": 1,
+      "answersStart": 42,
+      "answersLength": 25,
+      "encodingName": "utf-8",
+      "cevapAnahtariSatiri": "Öğrenci no 000000000 olan satırlar; kitapçık alanı A/B. Bugünkü parser bu biçimi tanımıyor.",
+      "dogrulama": "4. tur: gerçek dosya ile OpticalFileParser 17/17 geçerli, 17/17 cevap doğru (utf-8). Dosya: UTF-8, BOM yok, CRLF, satırlar 142 (B anahtarı 141) karaktere sağdan dolgulu, son satır 67 karakter ve satır sonu yok. Cevap anahtarı satırları öğrenci no 000000000."
+    },
+    {
+      "ad": "Selçuk Standart Optik Form",
+      "kaynak": "optik_form_ayarlari.jpg (yönetim paneli, aktif form). No 1-9 ve sınav türü 10 alan kutularından okundu; ad ~11-40, kitapçık 41, cevap 42-71 canlı önizlemeden çıkarıldı, teyit edilmeli.",
+      "varsayilan": true,
+      "satirUzunlugu": 71,
+      "studentNumberStart": 0,
+      "studentNumberLength": 9,
+      "studentNameStart": 10,
+      "studentNameLength": 30,
+      "bookletTypeStart": 40,
+      "bookletTypeLength": 1,
+      "examTypeStart": 9,
+      "examTypeLength": 1,
+      "answersStart": 41,
+      "answersLength": 30,
+      "encodingName": "utf-8",
+      "dogrulama": "ornek_optik_cikti.txt ile 0/17 geçerli (farklı düzen, beklenen)."
+    }
+  ]
+}
