@@ -176,6 +176,22 @@ public sealed class BookletScoringTests
     }
 
     [Fact]
+    public async Task K26_ApproveRollsBackWhenRecalculationFails()
+    {
+        await using var fixture = await ScoringFixture.CreateAsync();
+        await SetUpPendingSuggestionAsync(fixture);
+        await fixture.AddStudentAsync("003", "Z", "AAAA");
+        var suggestion = (await fixture.Suggestions.GetAsync(fixture.ExamId, default))!.Items.Single();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Suggestions.ApproveAsync(fixture.ExamId, suggestion.Id, default));
+        Assert.Equal(CancellationSuggestionStatus.Pending, await fixture.Context.QuestionCancellationSuggestions.AsNoTracking().Select(item => item.Status).SingleAsync());
+        var targetStatus = await fixture.Context.BookletQuestions.AsNoTracking()
+            .Where(item => item.ExamBooklet.BookletCode == "B" && item.DisplayQuestionNumber == 1)
+            .Select(item => item.Status)
+            .SingleAsync();
+        Assert.Equal(ExamQuestionStatus.Active, targetStatus);
+    }
+
+    [Fact]
     public async Task K26_RejectedSuggestionKeepsQuestionActive()
     {
         await using var fixture = await ScoringFixture.CreateAsync();
@@ -228,6 +244,24 @@ public sealed class BookletScoringTests
         var mapping = Assert.Single(page!.BookletMappings);
         Assert.Equal(new[] { (1, 4), (2, 3), (3, 2), (4, 1) }, mapping.Items.Select(item => (item.ReferenceQuestionNumber, item.BookletQuestionNumber)).ToArray());
         Assert.Equal(new[] { 1, 2 }, Assert.Single(page.QuestionMappings).QuestionNumbers);
+    }
+
+    [Fact]
+    public async Task KK5_H10_ChangingQuestionCountResetsBookletMappingsAndOutcomeLinks()
+    {
+        await using var fixture = await ScoringFixture.CreateAsync();
+        await fixture.SaveKeyAsync(ScoringFixture.KeyRequest(100, 4, ("A", "ABCD"), ("B", "DCBA")));
+        var outcome = await fixture.Outcomes.CreateOutcomeAsync(fixture.CourseId, new CreateLearningOutcomeRequest { Description = "Algoritma kurar" }, default);
+        await fixture.Outcomes.ApplyReverseMappingAsync(fixture.ExamId, new ReverseBookletMappingRequest { BookletCode = "B" }, default);
+        await fixture.Outcomes.SaveOutcomeMappingsAsync(fixture.ExamId, new SaveLearningOutcomeMappingsRequest { Mappings = [new LearningOutcomeQuestionMapInput { LearningOutcomeId = outcome!.Id, QuestionNumbers = [1, 4] }] }, default);
+        Assert.Equal(4, await fixture.Context.BookletQuestionMappings.CountAsync());
+        await fixture.SaveKeyAsync(ScoringFixture.KeyRequest(100, 4, ("A", "ABCD"), ("B", "DCBA")));
+        Assert.Equal(4, await fixture.Context.BookletQuestionMappings.CountAsync());
+        Assert.Equal(2, await fixture.Context.QuestionLearningOutcomes.CountAsync());
+        await fixture.SaveKeyAsync(ScoringFixture.KeyRequest(100, 3, ("A", "ABC"), ("B", "DCB")));
+        Assert.Equal(0, await fixture.Context.BookletQuestionMappings.CountAsync());
+        var remaining = await fixture.Context.QuestionLearningOutcomes.AsNoTracking().Select(item => item.ExamQuestion.CanonicalQuestionNumber).ToListAsync();
+        Assert.Equal(new[] { 1 }, remaining.ToArray());
     }
 
     [Fact]
