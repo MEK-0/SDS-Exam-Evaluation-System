@@ -11,7 +11,7 @@ export interface PasswordResetApprovalResponse { request: PasswordResetRequest; 
 export interface GradingPolicy { id: string; aaMinimum: number; baMinimum: number; bbMinimum: number; cbMinimum: number; ccMinimum: number; dcMinimum: number; midtermWeight: number; finalWeight: number; makeUpWeight: number; updatedAt: string; }
 export interface OpticalSystemSettings { id: string; studentNumberStart: number; studentNumberLength: number; studentNameStart: number | null; studentNameLength: number | null; bookletTypeStart: number; bookletTypeLength: number; examTypeStart: number | null; examTypeLength: number | null; answersStart: number; answersLength: number; encodingName: string; updatedAt: string; }
 export interface LoginResponse { accessToken: string; expiresAt: string; mustChangePassword: boolean; user: AuthUser; }
-export interface Course { id: string; code: string; name: string; academicYearId: string; academicYear: string; instructorCount: number; examCount: number; }
+export interface Course { id: string; code: string; name: string; academicYearId: string; academicYear: string; instructorCount: number; examCount: number; termEvaluationAvailable: boolean; }
 export interface AcademicYear { id: string; name: string; isActive: boolean; }
 export type ExamType = 'Midterm' | 'Final' | 'MakeUp';
 export type EvaluationType = 'MultipleChoice' | 'OpenEnded';
