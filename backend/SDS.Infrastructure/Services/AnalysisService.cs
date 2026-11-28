@@ -70,7 +70,7 @@ public sealed class AnalysisService(SdsDbContext dbContext, ICurrentUser current
     {
         var students = data.Students.ToDictionary(item => item.Id);
         var results = data.Results.ToDictionary(item => item.ImportedStudentId);
-        var matches = data.Matches.ToDictionary(item => item.ImportedStudentId);
+        var matches = data.Matches.Where(item => item.ImportedStudentId.HasValue).ToDictionary(item => item.ImportedStudentId!.Value);
         var graded = data.Results.Where(item => item.Status == GradeStatus.Graded && item.AdjustedScore.HasValue).ToList();
         var scores = graded.Select(item => item.AdjustedScore!.Value).OrderBy(item => item).ToList();
         decimal? average = scores.Count == 0 ? null : scores.Average();

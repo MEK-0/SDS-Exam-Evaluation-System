@@ -23,7 +23,7 @@ public sealed class GradeService(SdsDbContext dbContext, ICurrentUser currentUse
         EnsureReady(data.Exam, data.AnswerKey);
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var existing = await dbContext.ExamResults.Where(item => item.ExamId == examId).ToDictionaryAsync(item => item.ImportedStudentId, cancellationToken);
-        var matches = data.Matches.ToDictionary(item => item.ImportedStudentId);
+        var matches = data.Matches.Where(item => item.ImportedStudentId.HasValue).ToDictionary(item => item.ImportedStudentId!.Value);
         var booklets = data.AnswerKey!.Booklets.ToDictionary(item => item.BookletCode, StringComparer.OrdinalIgnoreCase);
         foreach (var student in data.Students)
         {

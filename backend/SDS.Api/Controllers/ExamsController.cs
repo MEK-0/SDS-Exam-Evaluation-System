@@ -181,6 +181,20 @@ public sealed class ExamsController(IExamService examService, IStudentDataImport
         return response is null ? NotFound(ApiResponse<MatchingResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<MatchingResponse>.Ok(response, "Optik kaydı eşleştirme dışında bırakıldı."));
     }
 
+    [HttpPut("exams/{examId:guid}/matching/suggestions/accept")]
+    public async Task<ActionResult<ApiResponse<MatchingResponse>>> AcceptMatchSuggestion(Guid examId, AcceptSuggestionRequest request, CancellationToken cancellationToken)
+    {
+        var response = await matchingService.AcceptSuggestionAsync(examId, request, cancellationToken);
+        return response is null ? NotFound(ApiResponse<MatchingResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<MatchingResponse>.Ok(response, "Önerilen eşleşme onaylandı."));
+    }
+
+    [HttpPut("exams/{examId:guid}/matching/suggestions/accept-absent")]
+    public async Task<ActionResult<ApiResponse<MatchingResponse>>> AcceptAbsentSuggestions(Guid examId, CancellationToken cancellationToken)
+    {
+        var response = await matchingService.AcceptAbsentSuggestionsAsync(examId, cancellationToken);
+        return response is null ? NotFound(ApiResponse<MatchingResponse>.Fail("Sınav bulunamadı veya erişim yetkiniz yok.")) : Ok(ApiResponse<MatchingResponse>.Ok(response, "Önerilen öğrenciler sınava girmedi olarak işaretlendi."));
+    }
+
     [HttpDelete("exams/{examId:guid}/matching/manual/{matchId:guid}")]
     public async Task<ActionResult<ApiResponse<MatchingResponse>>> RemoveManualMatch(Guid examId, Guid matchId, CancellationToken cancellationToken)
     {
